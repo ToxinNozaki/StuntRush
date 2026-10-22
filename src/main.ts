@@ -16,6 +16,7 @@ import "./debug/errorLogger"; // installed for its side effects: catches errors 
 import { DevOverlay } from "./debug/devOverlay";
 import { MenuScene } from "./menuScene";
 import { EnvironmentController } from "./environment";
+import { getCarSpec } from "./cars";
 
 async function main() {
   const loadingScreen = document.getElementById("loadingScreen")!;
@@ -66,6 +67,7 @@ async function main() {
   const environment = new EnvironmentController(scene, hemi, sun);
 
   const settings = loadSettings();
+  menuScene.setBodyColor(getCarSpec(settings.carId).bodyColorHex);
   let audio: EngineAudio | null = null;
 
   const applyPreset = (preset: GraphicsPreset) => {
@@ -115,7 +117,7 @@ async function main() {
 
   const SIGNALING_URL = "wss://stuntrush-signal.ss1734531235.workers.dev";
 
-  const menu = new MenuUI(async (mapId) => {
+  const menu = new MenuUI(async (mapId, carId) => {
     await fadeToBlack();
     menu.hide();
     menuScene.hide();
@@ -127,11 +129,17 @@ async function main() {
     environment.apply({ timeOfDay: settings.timeOfDay, weather: settings.weather });
     peerCountEl.classList.add("hidden");
     peerCountEl.textContent = "";
-    await game.load(mapId, environment.gripMultiplier, settings.multiplayerEnabled ? SIGNALING_URL : null);
+    await game.load(mapId, environment.gripMultiplier, settings.multiplayerEnabled ? SIGNALING_URL : null, carId);
     hud.classList.remove("hidden");
     backButton.classList.remove("hidden");
     fadeFromBlack();
   });
+  menu.setCar(settings.carId);
+  menu.onCarChanged = (carId) => {
+    settings.carId = carId;
+    saveSettings(settings);
+    menuScene.setBodyColor(getCarSpec(carId).bodyColorHex);
+  };
   setLoadingProgress(55);
   await menuScene.show();
   menu.show();

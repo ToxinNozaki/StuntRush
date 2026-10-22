@@ -1,4 +1,5 @@
 import * as BABYLON from "@babylonjs/core";
+import { DEFAULT_CAR_ID } from "./cars";
 
 export type GraphicsPreset = "low" | "medium" | "high";
 export type TimeOfDay = "day" | "night";
@@ -11,6 +12,7 @@ export interface Settings {
   timeOfDay: TimeOfDay;
   weather: Weather;
   multiplayerEnabled: boolean;
+  carId: string;
 }
 
 const STORAGE_KEY = "stuntrush_settings_v1";
@@ -22,6 +24,7 @@ const DEFAULTS: Settings = {
   timeOfDay: "day",
   weather: "clear",
   multiplayerEnabled: false,
+  carId: DEFAULT_CAR_ID,
 };
 
 export function loadSettings(): Settings {

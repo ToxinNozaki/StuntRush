@@ -4,6 +4,7 @@ import { VehicleController } from "./vehicle";
 import { buildWorld, type BuiltWorld } from "./world";
 import { MultiplayerClient } from "./multiplayer";
 import { RemoteCar } from "./remoteCar";
+import { getCarSpec } from "./cars";
 
 /**
  * Owns everything that exists only while a map is being played: the world
@@ -56,7 +57,12 @@ export class Game {
     };
   }
 
-  async load(_mapId: string, gripMultiplier = 1, signalingUrl: string | null = null): Promise<void> {
+  async load(
+    _mapId: string,
+    gripMultiplier = 1,
+    signalingUrl: string | null = null,
+    carId?: string
+  ): Promise<void> {
     if (this.isLoaded) this.dispose();
 
     this.world = buildWorld(this.scene);
@@ -64,6 +70,7 @@ export class Game {
     const spawn = new BABYLON.Vector3(0, 2, 0);
     const vehicle = new VehicleController(this.scene, this.input, spawn);
     vehicle.setGripMultiplier(gripMultiplier);
+    if (carId) vehicle.setCarSpec(getCarSpec(carId));
     this.vehicle = vehicle;
     void vehicle.attachVisual().then(() => this.onCarVisualReady?.(vehicle.visualMeshes));
 

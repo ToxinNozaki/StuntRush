@@ -1,6 +1,7 @@
 import * as BABYLON from "@babylonjs/core";
 import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
 import "@babylonjs/loaders/glTF";
+import { applyBodyColor } from "./carModel";
 
 const MODEL_URL = `${import.meta.env.BASE_URL}models/nissan-300zx.glb`;
 
@@ -14,6 +15,8 @@ export class MenuScene {
   private snow: BABYLON.ParticleSystem | null = null;
   private rotationObserver: BABYLON.Observer<BABYLON.Scene> | null = null;
   private buildPromise: Promise<void> | null = null;
+  private previewMeshes: BABYLON.AbstractMesh[] = [];
+  private pendingColorHex: string | null = null;
 
   private readonly scene: BABYLON.Scene;
   private readonly camera: BABYLON.UniversalCamera;
@@ -60,6 +63,15 @@ export class MenuScene {
     this.scene.activeCamera = this.camera;
   }
 
+  /** Updates the turntable car's paint; safe to call before the model has loaded. */
+  setBodyColor(hexColor: string) {
+    if (this.previewMeshes.length > 0) {
+      applyBodyColor(this.previewMeshes, hexColor);
+    } else {
+      this.pendingColorHex = hexColor;
+    }
+  }
+
   hide() {
     this.root?.setEnabled(false);
     // Neither stop() nor reset() actually clears already-emitted flakes (up to 11s
@@ -78,6 +90,11 @@ export class MenuScene {
     const root = new BABYLON.TransformNode("menuCarRoot", this.scene);
     for (const mesh of result.meshes) {
       if (mesh.parent === null) mesh.parent = root;
+    }
+    this.previewMeshes = result.meshes;
+    if (this.pendingColorHex) {
+      applyBodyColor(this.previewMeshes, this.pendingColorHex);
+      this.pendingColorHex = null;
     }
 
     const bounds = root.getHierarchyBoundingVectors(true);

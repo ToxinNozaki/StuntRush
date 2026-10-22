@@ -1,6 +1,7 @@
 import * as BABYLON from "@babylonjs/core";
 import { InputManager } from "./input";
 import { attachCarVisual, type CarVisual } from "./carModel";
+import type { CarSpec } from "./cars";
 
 interface WheelSpec {
   /** Position relative to the chassis center, in local space. */
@@ -48,6 +49,11 @@ export class VehicleController {
 
   /** Set by weather (snow, rain, etc.) — 1 = normal, lower = slicker surface. */
   private gripMultiplier = 1;
+
+  /** Set by the selected car's stats (see cars.ts) — stacks with weather's gripMultiplier. */
+  private enginePowerMultiplier = 1;
+  private carGripMultiplier = 1;
+  private carSpec: CarSpec | null = null;
 
   private groundedWheelCount = 0;
   private spawnPosition: BABYLON.Vector3;
@@ -110,10 +116,17 @@ export class VehicleController {
 
   /** Swaps in the real car mesh over the placeholder box. Fire-and-forget from the caller. */
   async attachVisual(): Promise<void> {
-    const visual = await attachCarVisual(this.scene, this.chassis, 4.3, 0.32);
+    const visual = await attachCarVisual(this.scene, this.chassis, 4.3, 0.32, this.carSpec?.bodyColorHex);
     this.visualRoot = visual.root;
     this.carVisual = visual;
     for (const light of visual.headlightLights) light.setEnabled(this.headlightsOn);
+  }
+
+  /** Call before attachVisual() so the paint color is baked into the import. */
+  setCarSpec(spec: CarSpec) {
+    this.carSpec = spec;
+    this.enginePowerMultiplier = spec.enginePowerMultiplier;
+    this.carGripMultiplier = spec.gripMultiplier;
   }
 
   toggleHeadlights() {
@@ -254,16 +267,19 @@ export class VehicleController {
     const forwardSpeed = BABYLON.Vector3.Dot(velocity, forward);
 
     const throttle = this.input.throttle;
+    const powerFactor = this.enginePowerMultiplier * this.gripMultiplier;
     if (throttle > 0) {
-      this.body.applyForce(forward.scale(this.engineForce * this.gripMultiplier * throttle), center);
+      this.body.applyForce(forward.scale(this.engineForce * powerFactor * throttle), center);
     } else if (throttle < 0) {
-      this.body.applyForce(forward.scale(this.reverseForce * this.gripMultiplier * throttle), center);
+      this.body.applyForce(forward.scale(this.reverseForce * powerFactor * throttle), center);
     }
 
     // Grip: kill lateral slide each frame so sliding is a deliberate choice, not an accident.
-    // Weather (snow, rain) lowers gripMultiplier, so the car holds less of that slide back.
+    // Weather (snow, rain) and the car's own stats both scale this — a "sport" car with
+    // lower gripMultiplier holds back less of the slide, a "GT" car holds back more.
+    const gripFactor = this.carGripMultiplier * this.gripMultiplier;
     const lateralSpeed = BABYLON.Vector3.Dot(velocity, right);
-    this.body.applyForce(right.scale(-lateralSpeed * this.lateralGripFactor * this.gripMultiplier), center);
+    this.body.applyForce(right.scale(-lateralSpeed * this.lateralGripFactor * gripFactor), center);
 
     // Speed-sensitive steering: tighter at low speed, smoothed out at high speed,
     // and reversed so steering still feels natural while backing up.
@@ -271,7 +287,7 @@ export class VehicleController {
     if (steer !== 0) {
       const speedFactor = 1 / (1 + Math.abs(forwardSpeed) * 0.08);
       const direction = forwardSpeed < 0 ? -1 : 1;
-      const torque = up.scale(steer * this.maxSteerTorque * this.gripMultiplier * speedFactor * direction);
+      const torque = up.scale(steer * this.maxSteerTorque * gripFactor * speedFactor * direction);
       this.applyTorqueImpulse(torque);
     }
   }

@@ -46,13 +46,21 @@
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
       }
-      #mapList { list-style: none; margin: 0 0 14px; padding: 0; width: 220px; }
+      #mapList { list-style: none; margin: 0 0 10px; padding: 0; width: 220px; }
       #mapList li { margin-bottom: 6px; }
       #mapList button {
         width: 100%; padding: 8px; font: 13px monospace; text-align: left;
         background: #222; color: #ccc; border: 1px solid #444; cursor: pointer;
       }
       #mapList button.selected { background: #333; color: #fff; border-color: #888; }
+
+      #carListLabel { width: 220px; font-size: 11px; opacity: 0.6; margin-bottom: 4px; letter-spacing: 1px; }
+      #carList { display: flex; flex-direction: column; gap: 6px; width: 220px; margin-bottom: 14px; }
+      #carList button {
+        padding: 7px 8px; font: 12px monospace; text-align: left;
+        background: #1a1a1a; color: #bbb; border: 1px solid #3a3a3a; cursor: pointer;
+      }
+      #carList button.selected { background: #2e2e2e; color: #fff; border-color: #888; }
 
       #envToggles { width: 220px; margin-bottom: 14px; }
       .envRow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -165,6 +173,8 @@
     <div id="menu">
       <div id="logoMark" role="img" aria-label="Go-Goated Racing"></div>
       <ul id="mapList"></ul>
+      <div id="carListLabel">Car</div>
+      <div id="carList"></div>
       <div id="envToggles">
         <div class="envRow">
           <span>Time</span>

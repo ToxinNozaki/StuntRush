@@ -3,6 +3,27 @@ import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
 import "@babylonjs/loaders/glTF";
 
 const MODEL_URL = `${import.meta.env.BASE_URL}models/nissan-300zx.glb`;
+/** The body shell's paint material in the source glTF — confirmed by raycasting the
+ *  live rendered scene (scene.pick) against the actual hood/door/fender pixels and
+ *  reading back the hit mesh's material name. Guessing this from the raw glTF JSON's
+ *  baseColor values or by eye (Material.004 turned out to be the wheels, not the body)
+ *  isn't reliable for this file — the materials carry no semantic names. */
+const BODY_PAINT_MATERIAL_NAME = "Material.001";
+
+/** Finds the body paint material among a freshly-imported car's meshes, if present. */
+export function findBodyPaintMaterial(meshes: BABYLON.AbstractMesh[]): BABYLON.PBRMaterial | null {
+  for (const mesh of meshes) {
+    if (mesh.material?.name === BODY_PAINT_MATERIAL_NAME) {
+      return mesh.material as BABYLON.PBRMaterial;
+    }
+  }
+  return null;
+}
+
+export function applyBodyColor(meshes: BABYLON.AbstractMesh[], hexColor: string) {
+  const paint = findBodyPaintMaterial(meshes);
+  if (paint) paint.albedoColor = BABYLON.Color3.FromHexString(hexColor);
+}
 
 export interface CarVisual {
   root: BABYLON.TransformNode;
@@ -24,7 +45,8 @@ export async function attachCarVisual(
   scene: BABYLON.Scene,
   chassis: BABYLON.Mesh,
   targetLength: number,
-  groundClearance: number
+  groundClearance: number,
+  bodyColorHex?: string
 ): Promise<CarVisual> {
   const result = await ImportMeshAsync(MODEL_URL, scene);
   const root = new BABYLON.TransformNode("carVisualRoot", scene);
@@ -34,6 +56,8 @@ export async function attachCarVisual(
       mesh.parent = root;
     }
   }
+
+  if (bodyColorHex) applyBodyColor(result.meshes, bodyColorHex);
 
   root.parent = chassis;
   root.position.setAll(0);
