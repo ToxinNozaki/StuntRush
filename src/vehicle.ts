@@ -36,6 +36,9 @@ export class VehicleController {
   private readonly maxSteerTorque = 11000;
   private readonly lateralGripFactor = 1100;
 
+  /** Driving off the world's edge or through a gap resets the car instead of free-falling forever. */
+  private readonly killPlaneY = -25;
+
   // Air control tuning — the GTA V-style fix for MSC2's "frozen in the air" problem.
   // Blended toward a target angular velocity each frame rather than raw torque,
   // so rotation feels controlled, never a wild spin.
@@ -171,7 +174,7 @@ export class VehicleController {
     const dt = this.scene.getEngine().getDeltaTime() / 1000;
     if (dt <= 0) return;
 
-    if (this.input.resetPressed) {
+    if (this.input.resetPressed || this.chassis.position.y < this.killPlaneY) {
       this.resetToSpawn();
       return;
     }

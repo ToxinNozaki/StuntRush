@@ -32,7 +32,12 @@ async function main() {
   setLoadingProgress(10);
 
   const havokInstance = await HavokPhysics();
-  const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
+  // false = step with Havok's own fixed internal timestep rather than the raw
+  // variable frame delta. With the raw delta, a multi-second gap (tab backgrounded,
+  // a stutter) makes Havok take ONE step across that whole gap — suspension/gravity
+  // forces integrated over several seconds in one shot, launching the car into orbit.
+  // The fixed step just simulates "slower" through a stall instead of exploding.
+  const havokPlugin = new BABYLON.HavokPlugin(false, havokInstance);
   scene.enablePhysics(new BABYLON.Vector3(0, -18, 0), havokPlugin);
   setLoadingProgress(40);
 

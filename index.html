@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stunt Rush</title>
     <style>
@@ -27,6 +27,28 @@
       #menu h1 {
         font-size: 28px; margin: 0 0 24px; font-weight: normal; letter-spacing: 2px;
         text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+      }
+      #logoMark {
+        position: relative; width: min(380px, 78vw); aspect-ratio: 2000 / 1000; margin: 0 0 20px;
+        background-image: url('%BASE_URL%branding/logo.png');
+        background-size: contain; background-repeat: no-repeat; background-position: center;
+        filter: drop-shadow(0 3px 14px rgba(0,0,0,0.75));
+      }
+      #logoMark::after {
+        content: ""; position: absolute; inset: 0;
+        -webkit-mask-image: url('%BASE_URL%branding/logo-fillmask.png');
+        mask-image: url('%BASE_URL%branding/logo-fillmask.png');
+        -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+        -webkit-mask-size: contain; mask-size: contain;
+        -webkit-mask-position: center; mask-position: center;
+        background: linear-gradient(115deg, #0c0c0c 0%, #5c5c5c 33%, #ffffff 50%, #5c5c5c 67%, #0c0c0c 100%);
+        background-size: 260% 100%;
+        animation: logoShimmer 5s ease-in-out infinite;
+      }
+      @keyframes logoShimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
       }
       #mapList { list-style: none; margin: 0 0 14px; padding: 0; width: 220px; }
       #mapList li { margin-bottom: 6px; }
@@ -121,7 +143,7 @@
     </div>
 
     <div id="menu">
-      <h1>Stunt Rush</h1>
+      <div id="logoMark" role="img" aria-label="Co-Coated Racing"></div>
       <ul id="mapList"></ul>
       <div id="envToggles">
         <div class="envRow">
