@@ -31,15 +31,19 @@
       #logoMark {
         position: absolute; top: 5%; left: 50%; transform: translateX(-50%);
         width: min(440px, 80vw); aspect-ratio: 2000 / 1000; pointer-events: none;
-        -webkit-mask-image: url('%BASE_URL%branding/logo.png');
-        mask-image: url('%BASE_URL%branding/logo.png');
+        background-image: url('%BASE_URL%branding/logo.png');
+        background-size: contain; background-repeat: no-repeat; background-position: center;
+      }
+      #logoMark::after {
+        content: ""; position: absolute; inset: 0;
+        -webkit-mask-image: url('%BASE_URL%branding/logo-fill.png');
+        mask-image: url('%BASE_URL%branding/logo-fill.png');
         -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
         -webkit-mask-size: contain; mask-size: contain;
         -webkit-mask-position: center; mask-position: center;
         background: linear-gradient(115deg, #0c0c0c 0%, #5c5c5c 33%, #ffffff 50%, #5c5c5c 67%, #0c0c0c 100%);
         background-size: 260% 100%;
         animation: logoShimmer 5s ease-in-out infinite;
-        filter: drop-shadow(0 3px 14px rgba(0,0,0,0.75));
       }
       @keyframes logoShimmer {
         0% { background-position: 0% 50%; }
