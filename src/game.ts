@@ -2,6 +2,8 @@ import * as BABYLON from "@babylonjs/core";
 import { InputManager } from "./input";
 import { VehicleController } from "./vehicle";
 import { buildWorld, type BuiltWorld } from "./world";
+import { MultiplayerClient } from "./multiplayer";
+import { RemoteCar } from "./remoteCar";
 
 /**
  * Owns everything that exists only while a map is being played: the world
@@ -17,8 +19,13 @@ export class Game {
   private camera: BABYLON.UniversalCamera | null = null;
   private renderObserver: BABYLON.Observer<BABYLON.Scene> | null = null;
 
+  private multiplayer: MultiplayerClient | null = null;
+  private readonly remoteCars = new Map<string, RemoteCar>();
+
   /** Fired once the car's visual model (and thus its real meshes) is ready to shadow-cast. */
   onCarVisualReady: ((meshes: BABYLON.AbstractMesh[]) => void) | null = null;
+  /** Fired on any multiplayer connection-count change, for a HUD readout. */
+  onPeerCountChanged: ((count: number) => void) | null = null;
 
   constructor(
     scene: BABYLON.Scene,
@@ -50,7 +57,7 @@ export class Game {
     };
   }
 
-  async load(_mapId: string, gripMultiplier = 1): Promise<void> {
+  async load(_mapId: string, gripMultiplier = 1, signalingUrl: string | null = null): Promise<void> {
     if (this.isLoaded) this.dispose();
 
     this.world = buildWorld(this.scene);
@@ -60,6 +67,8 @@ export class Game {
     vehicle.setGripMultiplier(gripMultiplier);
     this.vehicle = vehicle;
     void vehicle.attachVisual().then(() => this.onCarVisualReady?.(vehicle.visualMeshes));
+
+    if (signalingUrl) this.startMultiplayer(signalingUrl);
 
     const camera = new BABYLON.UniversalCamera("chaseCam", new BABYLON.Vector3(0, 4, -8), this.scene);
     camera.minZ = 0.1;
@@ -102,7 +111,41 @@ export class Game {
           vehicle.isAirborne ? "  •  airborne" : ""
         }`;
       }
+
+      for (const remote of this.remoteCars.values()) remote.update();
+
+      if (this.multiplayer) {
+        const rotation = vehicle.chassis.rotationQuaternion ?? BABYLON.Quaternion.Identity();
+        this.multiplayer.broadcastTransform({
+          p: carPos.asArray() as [number, number, number],
+          q: [rotation.x, rotation.y, rotation.z, rotation.w],
+          speedKph: vehicle.speedKph,
+          airborne: vehicle.isAirborne,
+        });
+      }
     });
+  }
+
+  private startMultiplayer(signalingUrl: string) {
+    const client = new MultiplayerClient();
+    this.multiplayer = client;
+
+    client.onPeerTransform = (id, transform) => {
+      let remote = this.remoteCars.get(id);
+      if (!remote) {
+        remote = new RemoteCar(this.scene, transform);
+        this.remoteCars.set(id, remote);
+        this.onPeerCountChanged?.(this.remoteCars.size);
+      }
+      remote.applyTransform(transform);
+    };
+    client.onPeerLeft = (id) => {
+      this.remoteCars.get(id)?.dispose();
+      this.remoteCars.delete(id);
+      this.onPeerCountChanged?.(this.remoteCars.size);
+    };
+
+    client.connect(signalingUrl);
   }
 
   /** Unloads the current map: disposes world geometry, vehicle, camera, and observers. */
@@ -113,6 +156,10 @@ export class Game {
     }
     this.vehicle?.dispose();
     this.vehicle = null;
+    this.multiplayer?.dispose();
+    this.multiplayer = null;
+    for (const remote of this.remoteCars.values()) remote.dispose();
+    this.remoteCars.clear();
     this.camera?.dispose();
     this.camera = null;
     this.scene.activeCamera = this.fallbackCamera;

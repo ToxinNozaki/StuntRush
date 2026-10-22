@@ -79,6 +79,14 @@ async function main() {
     menu.show();
   };
 
+  const peerCountEl = document.getElementById("peerCount")!;
+  game.onPeerCountChanged = (count) => {
+    peerCountEl.classList.remove("hidden");
+    peerCountEl.textContent = `${count} other player${count === 1 ? "" : "s"} connected`;
+  };
+
+  const SIGNALING_URL = "ws://localhost:8787";
+
   const menu = new MenuUI(async (mapId) => {
     menu.hide();
     menuScene.hide();
@@ -88,7 +96,9 @@ async function main() {
     }
     await audio.resume();
     environment.apply({ timeOfDay: settings.timeOfDay, weather: settings.weather });
-    await game.load(mapId, environment.gripMultiplier);
+    peerCountEl.classList.add("hidden");
+    peerCountEl.textContent = "";
+    await game.load(mapId, environment.gripMultiplier, settings.multiplayerEnabled ? SIGNALING_URL : null);
     hud.classList.remove("hidden");
     backButton.classList.remove("hidden");
   });
@@ -163,6 +173,18 @@ async function main() {
       settings.weather = button.dataset.value as Weather;
       saveSettings(settings);
       selectEnvButton(weatherButtons, settings.weather);
+    });
+  }
+
+  const multiplayerButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>("#multiplayerRow button")
+  );
+  selectEnvButton(multiplayerButtons, settings.multiplayerEnabled ? "on" : "off");
+  for (const button of multiplayerButtons) {
+    button.addEventListener("click", () => {
+      settings.multiplayerEnabled = button.dataset.value === "on";
+      saveSettings(settings);
+      selectEnvButton(multiplayerButtons, button.dataset.value!);
     });
   }
 

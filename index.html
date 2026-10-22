@@ -109,6 +109,13 @@
             <button data-value="snow">Snow</button>
           </div>
         </div>
+        <div class="envRow">
+          <span>Online</span>
+          <div class="envOptions" id="multiplayerRow">
+            <button data-value="off">Off</button>
+            <button data-value="on">Join (LAN)</button>
+          </div>
+        </div>
       </div>
       <div id="menuButtons">
         <button id="playButton" disabled>Play</button>
@@ -144,6 +151,7 @@
 
     <div id="hud" class="hidden">
       <div id="speed">0 mph</div>
+      <div id="peerCount" class="hidden"></div>
       <div class="hint">WASD/Arrows drive &middot; Space air control + Arrows/Mouse to flip &middot; R reset &middot; H headlights</div>
     </div>
     <button id="backButton" class="hidden">Menu</button>

@@ -10,6 +10,7 @@ export interface Settings {
   engineVolume: number; // 0..1
   timeOfDay: TimeOfDay;
   weather: Weather;
+  multiplayerEnabled: boolean;
 }
 
 const STORAGE_KEY = "stuntrush_settings_v1";
@@ -20,6 +21,7 @@ const DEFAULTS: Settings = {
   engineVolume: 0.8,
   timeOfDay: "day",
   weather: "clear",
+  multiplayerEnabled: false,
 };
 
 export function loadSettings(): Settings {
