@@ -85,7 +85,7 @@ async function main() {
     peerCountEl.textContent = `${count} other player${count === 1 ? "" : "s"} connected`;
   };
 
-  const SIGNALING_URL = "ws://localhost:8787";
+  const SIGNALING_URL = "wss://stuntrush-signal.ss1734531235.workers.dev";
 
   const menu = new MenuUI(async (mapId) => {
     menu.hide();
