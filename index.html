@@ -29,21 +29,17 @@
         text-shadow: 0 2px 12px rgba(0,0,0,0.8);
       }
       #logoMark {
-        position: relative; width: min(380px, 78vw); aspect-ratio: 2000 / 1000; margin: 0 0 20px;
-        background-image: url('%BASE_URL%branding/logo.png');
-        background-size: contain; background-repeat: no-repeat; background-position: center;
-        filter: drop-shadow(0 3px 14px rgba(0,0,0,0.75));
-      }
-      #logoMark::after {
-        content: ""; position: absolute; inset: 0;
-        -webkit-mask-image: url('%BASE_URL%branding/logo-fillmask.png');
-        mask-image: url('%BASE_URL%branding/logo-fillmask.png');
+        position: absolute; top: 13%; left: 50%; transform: translateX(-50%);
+        width: min(480px, 86vw); aspect-ratio: 2000 / 1000; pointer-events: none;
+        -webkit-mask-image: url('%BASE_URL%branding/logo.png');
+        mask-image: url('%BASE_URL%branding/logo.png');
         -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
         -webkit-mask-size: contain; mask-size: contain;
         -webkit-mask-position: center; mask-position: center;
         background: linear-gradient(115deg, #0c0c0c 0%, #5c5c5c 33%, #ffffff 50%, #5c5c5c 67%, #0c0c0c 100%);
         background-size: 260% 100%;
         animation: logoShimmer 5s ease-in-out infinite;
+        filter: drop-shadow(0 3px 14px rgba(0,0,0,0.75));
       }
       @keyframes logoShimmer {
         0% { background-position: 0% 50%; }
@@ -131,10 +127,34 @@
       body.booting #menu, body.booting #renderCanvas { opacity: 0; }
       #renderCanvas { transition: opacity 0.6s ease; }
       #menu { transition: opacity 0.6s ease; }
+
+      #sceneFade {
+        position: fixed; inset: 0; background: #000; z-index: 9000;
+        opacity: 0; pointer-events: none; transition: opacity 0.45s ease;
+      }
+      #sceneFade.active { opacity: 1; }
+
+      /* --- A little life: every clickable control eases instead of snapping. --- */
+      button {
+        transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
+      }
+      button:not(:disabled):hover { border-color: #999; }
+      button:not(:disabled):active { transform: scale(0.96); }
+      #mapList button:not(:disabled):hover,
+      .envRow button:not(:disabled):hover,
+      .presetRow button:not(:disabled):hover { background: #2a2a2a; }
+      #playButton:not(:disabled):hover { background: #3d3d3d; border-color: #aaa; }
+      #settingsButton:hover, #settingsBack:hover, #backButton:hover { background: #2c2c2c; }
+
+      #settings {
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      #settings.hidden { opacity: 0; transform: scale(0.98); pointer-events: none; display: flex; }
     </style>
   </head>
   <body class="booting">
     <canvas id="renderCanvas"></canvas>
+    <div id="sceneFade"></div>
 
     <div id="loadingScreen">
       <div id="loadingSpinner"></div>
@@ -143,7 +163,7 @@
     </div>
 
     <div id="menu">
-      <div id="logoMark" role="img" aria-label="Co-Coated Racing"></div>
+      <div id="logoMark" role="img" aria-label="Go-Goated Racing"></div>
       <ul id="mapList"></ul>
       <div id="envToggles">
         <div class="envRow">

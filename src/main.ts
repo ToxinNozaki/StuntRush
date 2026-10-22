@@ -85,13 +85,26 @@ async function main() {
   const hud = document.getElementById("hud")!;
   const backButton = document.getElementById("backButton")!;
 
-  const returnToMenu = () => {
+  // Menu <-> gameplay swap happens instantly underneath; this just masks the cut
+  // with a brief fade so it reads as a transition instead of a hard jump-cut.
+  const sceneFade = document.getElementById("sceneFade")!;
+  const FADE_MS = 450;
+  const fadeToBlack = () =>
+    new Promise<void>((resolve) => {
+      sceneFade.classList.add("active");
+      setTimeout(resolve, FADE_MS);
+    });
+  const fadeFromBlack = () => sceneFade.classList.remove("active");
+
+  const returnToMenu = async () => {
+    await fadeToBlack();
     game.dispose();
     environment.reset();
     hud.classList.add("hidden");
     backButton.classList.add("hidden");
     void menuScene.show();
     menu.show();
+    fadeFromBlack();
   };
 
   const peerCountEl = document.getElementById("peerCount")!;
@@ -103,6 +116,7 @@ async function main() {
   const SIGNALING_URL = "wss://stuntrush-signal.ss1734531235.workers.dev";
 
   const menu = new MenuUI(async (mapId) => {
+    await fadeToBlack();
     menu.hide();
     menuScene.hide();
     if (!audio) {
@@ -116,6 +130,7 @@ async function main() {
     await game.load(mapId, environment.gripMultiplier, settings.multiplayerEnabled ? SIGNALING_URL : null);
     hud.classList.remove("hidden");
     backButton.classList.remove("hidden");
+    fadeFromBlack();
   });
   setLoadingProgress(55);
   await menuScene.show();
