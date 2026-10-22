@@ -25,6 +25,10 @@ export class EnvironmentController {
   private snow: BABYLON.ParticleSystem | null = null;
   private cloudScrollObserver: BABYLON.Observer<BABYLON.Scene> | null = null;
 
+  private readonly scene: BABYLON.Scene;
+  private readonly hemi: BABYLON.HemisphericLight;
+  private readonly sun: BABYLON.DirectionalLight;
+
   private readonly baseHemiIntensity: number;
   private readonly baseSunIntensity: number;
   private readonly baseSunDiffuse: BABYLON.Color3;
@@ -32,11 +36,10 @@ export class EnvironmentController {
   /** Multiplies tire grip — weather's one real gameplay effect, not just visual. */
   gripMultiplier = 1;
 
-  constructor(
-    private readonly scene: BABYLON.Scene,
-    private readonly hemi: BABYLON.HemisphericLight,
-    private readonly sun: BABYLON.DirectionalLight
-  ) {
+  constructor(scene: BABYLON.Scene, hemi: BABYLON.HemisphericLight, sun: BABYLON.DirectionalLight) {
+    this.scene = scene;
+    this.hemi = hemi;
+    this.sun = sun;
     this.baseHemiIntensity = hemi.intensity;
     this.baseSunIntensity = sun.intensity;
     this.baseSunDiffuse = sun.diffuse.clone();

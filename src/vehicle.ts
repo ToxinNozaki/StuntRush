@@ -189,7 +189,6 @@ export class VehicleController {
     const right = BABYLON.Vector3.TransformNormal(BABYLON.Vector3.Right(), worldMatrix).normalize();
 
     this.groundedWheelCount = 0;
-    const rayResult = new BABYLON.PhysicsRaycastResult();
     const physicsEngine = this.scene.getPhysicsEngine()!;
     const castLength = this.restLength + this.wheelRadius;
 
@@ -198,7 +197,7 @@ export class VehicleController {
       const from = worldPos.add(up.scale(0.05));
       const to = worldPos.subtract(up.scale(castLength));
 
-      physicsEngine.raycastToRef(from, to, rayResult);
+      const rayResult = physicsEngine.raycast(from, to);
 
       if (rayResult.hasHit) {
         this.groundedWheelCount++;

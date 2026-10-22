@@ -27,13 +27,12 @@ export class Game {
   /** Fired on any multiplayer connection-count change, for a HUD readout. */
   onPeerCountChanged: ((count: number) => void) | null = null;
 
-  constructor(
-    scene: BABYLON.Scene,
-    input: InputManager,
-    private readonly fallbackCamera: BABYLON.Camera
-  ) {
+  private readonly fallbackCamera: BABYLON.Camera;
+
+  constructor(scene: BABYLON.Scene, input: InputManager, fallbackCamera: BABYLON.Camera) {
     this.scene = scene;
     this.input = input;
+    this.fallbackCamera = fallbackCamera;
   }
 
   get isLoaded(): boolean {

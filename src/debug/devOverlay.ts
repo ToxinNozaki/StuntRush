@@ -21,11 +21,18 @@ export class DevOverlay {
   private visible = false;
   private inspectorLoaded = false;
 
+  private readonly engine: BABYLON.Engine;
+  private readonly scene: BABYLON.Scene;
+  private readonly getVehicleTelemetry: () => VehicleTelemetry | null;
+
   constructor(
-    private readonly engine: BABYLON.Engine,
-    private readonly scene: BABYLON.Scene,
-    private readonly getVehicleTelemetry: () => VehicleTelemetry | null
+    engine: BABYLON.Engine,
+    scene: BABYLON.Scene,
+    getVehicleTelemetry: () => VehicleTelemetry | null
   ) {
+    this.engine = engine;
+    this.scene = scene;
+    this.getVehicleTelemetry = getVehicleTelemetry;
     this.panel = document.createElement("div");
     this.panel.id = "devOverlay";
     this.panel.style.cssText = `

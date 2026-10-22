@@ -39,6 +39,10 @@ export class MultiplayerClient {
     return [...this.channels.keys()];
   }
 
+  get id(): string | null {
+    return this.selfId;
+  }
+
   connect(signalingUrl: string) {
     const ws = new WebSocket(signalingUrl);
     this.ws = ws;

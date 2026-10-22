@@ -31,7 +31,6 @@ export class EngineAudio {
   private readonly layers = new Map<LayerName, Layer>();
   private ready = false;
 
-  private masterVolume = 0.7;
   private engineVolume = 0.8;
   private currentRate = 1;
 
@@ -100,7 +99,6 @@ export class EngineAudio {
   }
 
   setVolumes(masterVolume: number, engineVolume: number) {
-    this.masterVolume = masterVolume;
     this.engineVolume = engineVolume;
     this.masterGain.gain.setTargetAtTime(masterVolume, this.ctx.currentTime, 0.05);
   }

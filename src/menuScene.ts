@@ -15,17 +15,26 @@ export class MenuScene {
   private rotationObserver: BABYLON.Observer<BABYLON.Scene> | null = null;
   private buildPromise: Promise<void> | null = null;
 
+  private readonly scene: BABYLON.Scene;
+  private readonly camera: BABYLON.UniversalCamera;
+  private readonly hemi: BABYLON.HemisphericLight;
+  private readonly sun: BABYLON.DirectionalLight;
+
   private readonly originalHemiIntensity: number;
   private readonly originalSunIntensity: number;
   private readonly originalSunColor: BABYLON.Color3;
   private readonly originalClearColor: BABYLON.Color4;
 
   constructor(
-    private readonly scene: BABYLON.Scene,
-    private readonly camera: BABYLON.UniversalCamera,
-    private readonly hemi: BABYLON.HemisphericLight,
-    private readonly sun: BABYLON.DirectionalLight
+    scene: BABYLON.Scene,
+    camera: BABYLON.UniversalCamera,
+    hemi: BABYLON.HemisphericLight,
+    sun: BABYLON.DirectionalLight
   ) {
+    this.scene = scene;
+    this.camera = camera;
+    this.hemi = hemi;
+    this.sun = sun;
     this.originalHemiIntensity = hemi.intensity;
     this.originalSunIntensity = sun.intensity;
     this.originalSunColor = sun.diffuse.clone();
