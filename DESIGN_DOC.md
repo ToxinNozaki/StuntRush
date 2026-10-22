@@ -10,7 +10,7 @@
 > file is the durable, always-on-disk copy that survives a chat's context
 > filling up.
 >
-> Last synced: 2026-10-22 (doc rev 25)
+> Last synced: 2026-10-22 (doc rev 27)
 
 ---
 
@@ -159,17 +159,16 @@ Build order deviated from the phased roadmap above: multiplayer and deployment s
 - **Vertical slice (Phase 1): done** — PBR car with clearcoat paint, working brake-reactive head/taillights, one loop, day/night + weather (clear/cloudy/snow) affecting grip
 - **Multiplayer (Phase 3): done** — WebRTC full-mesh P2P, up to 4 players, signaling relay deployed on Cloudflare Workers/Durable Objects
 - **Deployment (Phase 4): done** — public repo, GitHub Actions auto-builds and redeploys to GitHub Pages on every push
-- **Full world (Phase 2): in progress** — a second ramp-into-loop-into-runway chain and a half-pipe stunt piece are in; still short of the doc's "full free-roam map" target (needs more variety, a boundary that isn't just a kill-plane, tighter stunt chaining)
+- **Full world (Phase 2): done** — a second ramp-into-loop-into-runway chain, a half-pipe, a kicker jump + landing pad for distance/airtime stunts distinct from the loop ramps, a banked turn closing the main line into an actual circuit instead of a dead-end straight, and a visible boundary wall ring around the whole play area (the kill-plane is now the fallback, not the only edge signal). Could always use more variety later, but it satisfies the doc's checklist item now.
 - **Car selection: done, reworked** — 3 performance profiles on the one chassis/physics rig (Stock / Sport / GT — renamed from the original color-coded names), each with a real power-vs-grip stat trade-off. Paint color is **fully decoupled** from the performance pick: a rainbow hue slider (0-359°) on the menu picks any color via HSL (fixed saturation/lightness tuned for glossy paint — see `hueToHex()` in `src/cars.ts`), applied live to the menu preview and carried into gameplay via `settings.bodyColorHue`. Body paint material is `Material.001`, confirmed by raycasting the live rendered body panel with `scene.pick()` rather than guessing from the raw glTF JSON (its baseColor values don't reliably indicate which material is which — `Material.004` looked like a plausible body-paint candidate by color but turned out to be the wheels). Satisfies the v1 checklist's "2-3 selectable cars" item. License plate text customization (`numberplate.001`) is still unbuilt.
 - **UI polish**: branded logo (black outline + drop shadow from the original art, with an animated gradient shimmer masked to just the white fill using a second, effects-free export), a boot loading screen, scene fade transitions on Play/return-to-menu, hover/press feedback on every button, Settings panel fades + scales in.
 - **Robustness fix**: Havok was stepping physics with the raw variable frame delta, so a multi-second stall (tab backgrounded, a stutter) made it take one gigantic step and could launch the car into orbit. Switched to Havok's fixed internal timestep. Also added a kill-plane for any off-map fall as a second line of defense.
 
 ### What's left for v1 (per the must-have checklist above)
 
-- **Rebindable controls** — the one remaining unbuilt v1 must-have. Keyboard is currently hardcoded (WASD/arrows); needs a rebinding UI + a configurable keymap persisted to `localStorage`.
-- **Full world (Phase 2)** — more track variety, tighter stunt chaining, a real boundary (not just the kill-plane safety net).
+- **Rebindable controls** — the only remaining unbuilt v1 must-have. Keyboard is currently hardcoded (WASD/arrows); needs a rebinding UI + a configurable keymap persisted to `localStorage`. This is the single item standing between "in progress" and "v1 complete."
 
-Everything else on the v1 must-have list is built: free-roam world (partial but present), arcade handling + air control, instant reset, chase camera with FOV kick, minimal HUD, car selection, shared multiplayer presence.
+Everything else on the v1 must-have list is built: free-roam world, arcade handling + air control, instant reset, chase camera with FOV kick, full world (Phase 2), minimal HUD, car selection, shared multiplayer presence.
 
 ## Backlog — Future Features (post-v1)
 
@@ -181,5 +180,6 @@ Everything else on the v1 must-have list is built: free-roam world (partial but 
 - **The car model's glTF material names are not semantically stable or guessable.** `Material.001` is the body paint, `Material.004` is the wheels — neither can be inferred from the raw glTF JSON's baseColor values reliably. If you need to find a specific surface's material again, raycast the live rendered mesh with `scene.pick(x, y)` and read back `pickResult.pickedMesh.material.name` — don't guess from material names or baseColor alone.
 - **Paint color and car choice are two independent settings, not one.** `settings.carId` picks the performance profile (`src/cars.ts` `CARS`); `settings.bodyColorHue` (0-359) picks the color via `hueToHex()`, applied through `VehicleController.setBodyColor()` / `MenuScene.setBodyColor()` — both take a hex string, not a car id. Don't reintroduce a per-car fixed color; the slider is the only color input now.
 - **Havok plugin is constructed with `useDeltaForWorldStep: false`** (`src/main.ts`) — fixed internal timestep, not the raw frame delta. Don't change this back without re-adding some other safeguard against frame-hitch physics explosions.
+- **Never rotate a physics-enabled mesh via `.rotation.axis = value` in `src/world.ts` — always use `rotationQuaternion` directly (see the `setEulerRotation()` helper).** `createInstance()` inherits whatever `rotationQuaternion` the base mesh had baked in from its own `PhysicsAggregate` creation (Babylon auto-converts a mesh's Euler `.rotation` to a quaternion the first time a physics aggregate is created for it). Any instance created *after* that conversion starts with that same quaternion, and later setting `.rotation.axis` on it does nothing — `rotationQuaternion` wins once it's non-null, silently. This was live and broken in the half-pipe's right wall for a while (leaning the same direction as the left wall) before it got caught by actually reading back world-matrix transforms in the running scene, not by eyeballing a screenshot. If you add a new rotated, physics-enabled piece, use `setEulerRotation()` (or set `rotationQuaternion` directly) — never `.rotation.x/y/z`.
 - **GitHub Pages deploy**: public repo required (private repos need a paid plan for Pages). `vite.config.ts` sets `base: "/StuntRush/"` for the subpath; any new asset reference in `index.html` must use `%BASE_URL%` (not a bare `/`) or it'll resolve to the wrong domain root on Pages.
 - Live link: **https://toxinnozaki.github.io/StuntRush/** — auto-updates on every push to `master` via `.github/workflows/deploy.yml`.
