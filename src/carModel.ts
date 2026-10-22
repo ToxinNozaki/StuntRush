@@ -2,7 +2,7 @@ import * as BABYLON from "@babylonjs/core";
 import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
 import "@babylonjs/loaders/glTF";
 
-const MODEL_URL = "/models/nissan-300zx.glb";
+const MODEL_URL = `${import.meta.env.BASE_URL}models/nissan-300zx.glb`;
 
 export interface CarVisual {
   root: BABYLON.TransformNode;

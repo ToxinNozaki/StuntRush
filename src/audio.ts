@@ -16,10 +16,11 @@ interface Layer {
   gain: GainNode;
 }
 
+const BASE = import.meta.env.BASE_URL;
 const CLIPS = {
-  idle: { engine: "/audio/engine_idle.wav", exhaust: "/audio/exhaust_idle.wav" },
-  accel: { engine: "/audio/engine_accel.wav", exhaust: "/audio/exhaust_accel.wav" },
-  decel: { engine: "/audio/engine_decel.wav", exhaust: "/audio/exhaust_decel.wav" },
+  idle: { engine: `${BASE}audio/engine_idle.wav`, exhaust: `${BASE}audio/exhaust_idle.wav` },
+  accel: { engine: `${BASE}audio/engine_accel.wav`, exhaust: `${BASE}audio/exhaust_accel.wav` },
+  decel: { engine: `${BASE}audio/engine_decel.wav`, exhaust: `${BASE}audio/exhaust_decel.wav` },
 } as const;
 
 type LayerName = keyof typeof CLIPS;
