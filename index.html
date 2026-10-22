@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stunt Rush</title>
+    <style>
+      html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; background: #000; }
+      #renderCanvas { width: 100%; height: 100%; display: block; touch-action: none; }
+
+      #hud {
+        position: fixed; top: 12px; left: 16px; color: #fff; font: 14px/1.4 monospace;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.8); pointer-events: none; user-select: none;
+      }
+      #hud .hint { opacity: 0.7; font-size: 12px; }
+      #hud.hidden { display: none; }
+
+      #menu {
+        position: fixed; inset: 0; background: transparent;
+        color: #eee; font: 14px/1.4 monospace;
+        display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+        padding-bottom: 10%; pointer-events: none;
+      }
+      #menu.hidden { display: none; }
+      #menu > * { pointer-events: auto; }
+      #menu h1 {
+        font-size: 28px; margin: 0 0 24px; font-weight: normal; letter-spacing: 2px;
+        text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+      }
+      #mapList { list-style: none; margin: 0 0 14px; padding: 0; width: 220px; }
+      #mapList li { margin-bottom: 6px; }
+      #mapList button {
+        width: 100%; padding: 8px; font: 13px monospace; text-align: left;
+        background: #222; color: #ccc; border: 1px solid #444; cursor: pointer;
+      }
+      #mapList button.selected { background: #333; color: #fff; border-color: #888; }
+
+      #envToggles { width: 220px; margin-bottom: 14px; }
+      .envRow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+      .envRow span { width: 60px; font-size: 11px; opacity: 0.75; }
+      .envRow .envOptions { display: flex; gap: 4px; flex: 1; }
+      .envRow button {
+        flex: 1; padding: 5px; font: 11px monospace; background: #1a1a1a; color: #bbb;
+        border: 1px solid #3a3a3a; cursor: pointer;
+      }
+      .envRow button.selected { background: #333; color: #fff; border-color: #888; }
+      #playButton {
+        padding: 10px 28px; font: 14px monospace; background: #333; color: #fff;
+        border: 1px solid #888; cursor: pointer;
+      }
+      #playButton:disabled { opacity: 0.4; cursor: default; }
+      #menuButtons { display: flex; gap: 10px; }
+      #settingsButton {
+        padding: 10px 20px; font: 14px monospace; background: #222; color: #ccc;
+        border: 1px solid #555; cursor: pointer;
+      }
+
+      #settings {
+        position: fixed; inset: 0; background: #111;
+        color: #eee; font: 14px/1.4 monospace;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+      }
+      #settings.hidden { display: none; }
+      #settings h1 { font-size: 20px; margin: 0 0 24px; font-weight: normal; }
+      .settingsGroup { width: 260px; margin-bottom: 20px; }
+      .settingsGroup h2 { font-size: 13px; font-weight: normal; opacity: 0.7; margin: 0 0 8px; }
+      .presetRow { display: flex; gap: 8px; }
+      .presetRow button {
+        flex: 1; padding: 8px; font: 13px monospace; background: #222; color: #ccc;
+        border: 1px solid #444; cursor: pointer;
+      }
+      .presetRow button.selected { background: #333; color: #fff; border-color: #888; }
+      .sliderRow { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+      .sliderRow label { width: 70px; font-size: 12px; opacity: 0.85; }
+      .sliderRow input[type="range"] { flex: 1; }
+      .sliderRow .value { width: 32px; text-align: right; font-size: 12px; opacity: 0.7; }
+      #settingsBack {
+        padding: 10px 28px; font: 14px monospace; background: #333; color: #fff;
+        border: 1px solid #888; cursor: pointer;
+      }
+
+      #backButton {
+        position: fixed; top: 12px; right: 16px; padding: 6px 12px; font: 12px monospace;
+        background: #222; color: #ccc; border: 1px solid #555; cursor: pointer;
+      }
+      #backButton.hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <canvas id="renderCanvas"></canvas>
+
+    <div id="menu">
+      <h1>Stunt Rush</h1>
+      <ul id="mapList"></ul>
+      <div id="envToggles">
+        <div class="envRow">
+          <span>Time</span>
+          <div class="envOptions" id="timeOfDayRow">
+            <button data-value="day">Day</button>
+            <button data-value="night">Night</button>
+          </div>
+        </div>
+        <div class="envRow">
+          <span>Weather</span>
+          <div class="envOptions" id="weatherRow">
+            <button data-value="clear">Clear</button>
+            <button data-value="cloudy">Cloudy</button>
+            <button data-value="snow">Snow</button>
+          </div>
+        </div>
+      </div>
+      <div id="menuButtons">
+        <button id="playButton" disabled>Play</button>
+        <button id="settingsButton">Settings</button>
+      </div>
+    </div>
+
+    <div id="settings" class="hidden">
+      <h1>Settings</h1>
+      <div class="settingsGroup">
+        <h2>Graphics</h2>
+        <div class="presetRow" id="presetRow">
+          <button data-preset="low">Low</button>
+          <button data-preset="medium">Medium</button>
+          <button data-preset="high">High</button>
+        </div>
+      </div>
+      <div class="settingsGroup">
+        <h2>Audio</h2>
+        <div class="sliderRow">
+          <label for="masterVolume">Master</label>
+          <input type="range" id="masterVolume" min="0" max="100" value="70" />
+          <span class="value" id="masterVolumeValue">70</span>
+        </div>
+        <div class="sliderRow">
+          <label for="engineVolume">Engine</label>
+          <input type="range" id="engineVolume" min="0" max="100" value="80" />
+          <span class="value" id="engineVolumeValue">80</span>
+        </div>
+      </div>
+      <button id="settingsBack">Back</button>
+    </div>
+
+    <div id="hud" class="hidden">
+      <div id="speed">0 mph</div>
+      <div class="hint">WASD/Arrows drive &middot; Space air control + Arrows/Mouse to flip &middot; R reset &middot; H headlights</div>
+    </div>
+    <button id="backButton" class="hidden">Menu</button>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

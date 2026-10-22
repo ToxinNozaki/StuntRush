@@ -1,0 +1,130 @@
+import * as BABYLON from "@babylonjs/core";
+import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
+import "@babylonjs/loaders/glTF";
+
+const MODEL_URL = "/models/nissan-300zx.glb";
+
+/**
+ * The backdrop behind the main menu: the car on a slow turntable in a dark,
+ * snowing scene. Built once on first show(), then just enabled/disabled —
+ * cheap to bring back each time the player returns to the menu.
+ */
+export class MenuScene {
+  private root: BABYLON.TransformNode | null = null;
+  private snow: BABYLON.ParticleSystem | null = null;
+  private rotationObserver: BABYLON.Observer<BABYLON.Scene> | null = null;
+  private buildPromise: Promise<void> | null = null;
+
+  private readonly originalHemiIntensity: number;
+  private readonly originalSunIntensity: number;
+  private readonly originalSunColor: BABYLON.Color3;
+  private readonly originalClearColor: BABYLON.Color4;
+
+  constructor(
+    private readonly scene: BABYLON.Scene,
+    private readonly camera: BABYLON.UniversalCamera,
+    private readonly hemi: BABYLON.HemisphericLight,
+    private readonly sun: BABYLON.DirectionalLight
+  ) {
+    this.originalHemiIntensity = hemi.intensity;
+    this.originalSunIntensity = sun.intensity;
+    this.originalSunColor = sun.diffuse.clone();
+    this.originalClearColor = scene.clearColor.clone();
+  }
+
+  async show(): Promise<void> {
+    if (!this.buildPromise) this.buildPromise = this.build();
+    await this.buildPromise;
+
+    this.root!.setEnabled(true);
+    if (!this.snow) this.snow = this.buildSnow();
+    this.snow.start();
+
+    // Cold, dim showroom-at-night mood — distinct from the daylight gameplay look.
+    this.scene.clearColor = new BABYLON.Color4(0.04, 0.05, 0.08, 1);
+    this.hemi.intensity = 0.18;
+    this.sun.intensity = 0.55;
+    this.sun.diffuse = new BABYLON.Color3(0.75, 0.82, 1.0);
+
+    this.camera.position = new BABYLON.Vector3(-3.6, 1.35, -5.4);
+    this.camera.setTarget(new BABYLON.Vector3(0, 0.55, 0));
+    this.scene.activeCamera = this.camera;
+  }
+
+  hide() {
+    this.root?.setEnabled(false);
+    // Neither stop() nor reset() actually clears already-emitted flakes (up to 11s
+    // lifetime) — they'd keep drifting through the daylight gameplay scene. Disposing
+    // and rebuilding fresh next show() is the only way that's actually instant.
+    this.snow?.dispose();
+    this.snow = null;
+    this.hemi.intensity = this.originalHemiIntensity;
+    this.sun.intensity = this.originalSunIntensity;
+    this.sun.diffuse = this.originalSunColor;
+    this.scene.clearColor = this.originalClearColor;
+  }
+
+  private async build(): Promise<void> {
+    const result = await ImportMeshAsync(MODEL_URL, this.scene);
+    const root = new BABYLON.TransformNode("menuCarRoot", this.scene);
+    for (const mesh of result.meshes) {
+      if (mesh.parent === null) mesh.parent = root;
+    }
+
+    const bounds = root.getHierarchyBoundingVectors(true);
+    const size = bounds.max.subtract(bounds.min);
+    const scale = 4.3 / (Math.max(size.x, size.z) || 1);
+    root.scaling.setAll(scale);
+
+    const scaledBounds = root.getHierarchyBoundingVectors(true);
+    const center = scaledBounds.min.add(scaledBounds.max).scale(0.5);
+    root.position = new BABYLON.Vector3(-center.x, -scaledBounds.min.y, -center.z);
+
+    this.root = root;
+    this.rotationObserver = this.scene.onBeforeRenderObservable.add(() => {
+      // Slow, deliberate turntable — not a spin. Gives the eye time to read the car.
+      root.rotation.y += this.scene.getEngine().getDeltaTime() * 0.00012;
+    });
+
+    this.snow = this.buildSnow();
+  }
+
+  private buildSnow(): BABYLON.ParticleSystem {
+    const snowTexture = new BABYLON.DynamicTexture("snowflakeTex", 64, this.scene, false);
+    const ctx = snowTexture.getContext() as CanvasRenderingContext2D;
+    const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gradient.addColorStop(0, "rgba(255,255,255,0.9)");
+    gradient.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 64, 64);
+    snowTexture.update();
+
+    const snow = new BABYLON.ParticleSystem("snow", 500, this.scene);
+    snow.particleTexture = snowTexture;
+    snow.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+    snow.emitter = new BABYLON.Vector3(0, 6, 0);
+    snow.minEmitBox = new BABYLON.Vector3(-9, 0, -9);
+    snow.maxEmitBox = new BABYLON.Vector3(9, 1, 9);
+    snow.direction1 = new BABYLON.Vector3(-0.3, -1, -0.1);
+    snow.direction2 = new BABYLON.Vector3(0.3, -1, 0.1);
+    snow.minEmitPower = 0.6;
+    snow.maxEmitPower = 1.1;
+    snow.minSize = 0.03;
+    snow.maxSize = 0.09;
+    snow.minLifeTime = 7;
+    snow.maxLifeTime = 11;
+    snow.emitRate = 60;
+    snow.color1 = new BABYLON.Color4(1, 1, 1, 0.85);
+    snow.color2 = new BABYLON.Color4(1, 1, 1, 0.5);
+    snow.colorDead = new BABYLON.Color4(1, 1, 1, 0);
+    snow.gravity = new BABYLON.Vector3(0, -0.05, 0);
+    snow.disposeOnStop = false;
+    return snow;
+  }
+
+  dispose() {
+    if (this.rotationObserver) this.scene.onBeforeRenderObservable.remove(this.rotationObserver);
+    this.snow?.dispose();
+    this.root?.dispose(false, true);
+  }
+}
