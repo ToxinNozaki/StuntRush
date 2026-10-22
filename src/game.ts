@@ -61,7 +61,8 @@ export class Game {
     _mapId: string,
     gripMultiplier = 1,
     signalingUrl: string | null = null,
-    carId?: string
+    carId?: string,
+    bodyColorHex?: string
   ): Promise<void> {
     if (this.isLoaded) this.dispose();
 
@@ -71,6 +72,7 @@ export class Game {
     const vehicle = new VehicleController(this.scene, this.input, spawn);
     vehicle.setGripMultiplier(gripMultiplier);
     if (carId) vehicle.setCarSpec(getCarSpec(carId));
+    if (bodyColorHex) vehicle.setBodyColor(bodyColorHex);
     this.vehicle = vehicle;
     void vehicle.attachVisual().then(() => this.onCarVisualReady?.(vehicle.visualMeshes));
 

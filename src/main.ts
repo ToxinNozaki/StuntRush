@@ -16,7 +16,7 @@ import "./debug/errorLogger"; // installed for its side effects: catches errors 
 import { DevOverlay } from "./debug/devOverlay";
 import { MenuScene } from "./menuScene";
 import { EnvironmentController } from "./environment";
-import { getCarSpec } from "./cars";
+import { hueToHex } from "./cars";
 
 async function main() {
   const loadingScreen = document.getElementById("loadingScreen")!;
@@ -67,7 +67,7 @@ async function main() {
   const environment = new EnvironmentController(scene, hemi, sun);
 
   const settings = loadSettings();
-  menuScene.setBodyColor(getCarSpec(settings.carId).bodyColorHex);
+  menuScene.setBodyColor(hueToHex(settings.bodyColorHue));
   let audio: EngineAudio | null = null;
 
   const applyPreset = (preset: GraphicsPreset) => {
@@ -129,7 +129,13 @@ async function main() {
     environment.apply({ timeOfDay: settings.timeOfDay, weather: settings.weather });
     peerCountEl.classList.add("hidden");
     peerCountEl.textContent = "";
-    await game.load(mapId, environment.gripMultiplier, settings.multiplayerEnabled ? SIGNALING_URL : null, carId);
+    await game.load(
+      mapId,
+      environment.gripMultiplier,
+      settings.multiplayerEnabled ? SIGNALING_URL : null,
+      carId,
+      hueToHex(settings.bodyColorHue)
+    );
     hud.classList.remove("hidden");
     backButton.classList.remove("hidden");
     fadeFromBlack();
@@ -138,8 +144,20 @@ async function main() {
   menu.onCarChanged = (carId) => {
     settings.carId = carId;
     saveSettings(settings);
-    menuScene.setBodyColor(getCarSpec(carId).bodyColorHex);
   };
+
+  // --- Paint color slider: a single hue drives both the preview and the live car. ---
+  const colorSlider = document.getElementById("colorSlider") as HTMLInputElement;
+  const paintHueValue = document.getElementById("paintHueValue")!;
+  colorSlider.value = String(settings.bodyColorHue);
+  paintHueValue.textContent = `${settings.bodyColorHue}°`;
+  colorSlider.addEventListener("input", () => {
+    settings.bodyColorHue = Number(colorSlider.value);
+    paintHueValue.textContent = `${settings.bodyColorHue}°`;
+    saveSettings(settings);
+    menuScene.setBodyColor(hueToHex(settings.bodyColorHue));
+  });
+
   setLoadingProgress(55);
   await menuScene.show();
   menu.show();

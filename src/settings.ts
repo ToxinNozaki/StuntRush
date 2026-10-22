@@ -1,5 +1,5 @@
 import * as BABYLON from "@babylonjs/core";
-import { DEFAULT_CAR_ID } from "./cars";
+import { DEFAULT_CAR_ID, DEFAULT_BODY_HUE } from "./cars";
 
 export type GraphicsPreset = "low" | "medium" | "high";
 export type TimeOfDay = "day" | "night";
@@ -13,6 +13,8 @@ export interface Settings {
   weather: Weather;
   multiplayerEnabled: boolean;
   carId: string;
+  /** Body paint hue, 0-360 — the color slider's only input (see cars.ts hueToHex). */
+  bodyColorHue: number;
 }
 
 const STORAGE_KEY = "stuntrush_settings_v1";
@@ -25,6 +27,7 @@ const DEFAULTS: Settings = {
   weather: "clear",
   multiplayerEnabled: false,
   carId: DEFAULT_CAR_ID,
+  bodyColorHue: DEFAULT_BODY_HUE,
 };
 
 export function loadSettings(): Settings {

@@ -53,7 +53,8 @@ export class VehicleController {
   /** Set by the selected car's stats (see cars.ts) — stacks with weather's gripMultiplier. */
   private enginePowerMultiplier = 1;
   private carGripMultiplier = 1;
-  private carSpec: CarSpec | null = null;
+  /** Set independently by the paint color slider — a performance pick never locks in a color. */
+  private bodyColorHex: string | null = null;
 
   private groundedWheelCount = 0;
   private spawnPosition: BABYLON.Vector3;
@@ -116,17 +117,21 @@ export class VehicleController {
 
   /** Swaps in the real car mesh over the placeholder box. Fire-and-forget from the caller. */
   async attachVisual(): Promise<void> {
-    const visual = await attachCarVisual(this.scene, this.chassis, 4.3, 0.32, this.carSpec?.bodyColorHex);
+    const visual = await attachCarVisual(this.scene, this.chassis, 4.3, 0.32, this.bodyColorHex ?? undefined);
     this.visualRoot = visual.root;
     this.carVisual = visual;
     for (const light of visual.headlightLights) light.setEnabled(this.headlightsOn);
   }
 
-  /** Call before attachVisual() so the paint color is baked into the import. */
+  /** Call before attachVisual() so the performance stats are active from the first frame. */
   setCarSpec(spec: CarSpec) {
-    this.carSpec = spec;
     this.enginePowerMultiplier = spec.enginePowerMultiplier;
     this.carGripMultiplier = spec.gripMultiplier;
+  }
+
+  /** Call before attachVisual() so the paint color is baked into the import. */
+  setBodyColor(hex: string) {
+    this.bodyColorHex = hex;
   }
 
   toggleHeadlights() {
