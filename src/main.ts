@@ -18,13 +18,23 @@ import { MenuScene } from "./menuScene";
 import { EnvironmentController } from "./environment";
 
 async function main() {
+  const loadingScreen = document.getElementById("loadingScreen")!;
+  const loadingBarFill = document.getElementById("loadingBarFill")!;
+  const loadingPercent = document.getElementById("loadingPercent")!;
+  const setLoadingProgress = (pct: number) => {
+    loadingBarFill.style.width = `${pct}%`;
+    loadingPercent.textContent = `${Math.round(pct)}%`;
+  };
+
   const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
   const engine = new BABYLON.Engine(canvas, true, { stencil: true });
   const scene = new BABYLON.Scene(engine);
+  setLoadingProgress(10);
 
   const havokInstance = await HavokPhysics();
   const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
   scene.enablePhysics(new BABYLON.Vector3(0, -18, 0), havokPlugin);
+  setLoadingProgress(40);
 
   scene.clearColor = new BABYLON.Color4(0.55, 0.65, 0.75, 1);
 
@@ -102,8 +112,14 @@ async function main() {
     hud.classList.remove("hidden");
     backButton.classList.remove("hidden");
   });
-  void menuScene.show();
+  setLoadingProgress(55);
+  await menuScene.show();
   menu.show();
+  setLoadingProgress(100);
+
+  document.body.classList.remove("booting");
+  loadingScreen.classList.add("hidden");
+  setTimeout(() => loadingScreen.remove(), 700);
 
   backButton.addEventListener("click", returnToMenu);
   window.addEventListener("keydown", (e) => {

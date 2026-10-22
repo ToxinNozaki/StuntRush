@@ -59,6 +59,10 @@ export class EnvironmentController {
     this.cloudLayer.material = this.cloudMaterial;
     this.cloudLayer.isPickable = false;
     this.cloudLayer.receiveShadows = false;
+    // Built eagerly but not yet styled by apply() — stays hidden until gameplay
+    // actually starts, otherwise it renders with default (unstyled) material over
+    // the main menu, which shows up as a dark band across the top of the screen.
+    this.cloudLayer.setEnabled(false);
 
     this.cloudScrollObserver = scene.onBeforeRenderObservable.add(() => {
       const tex = this.cloudMaterial.diffuseTexture as BABYLON.Texture;
@@ -75,6 +79,7 @@ export class EnvironmentController {
   }
 
   apply(options: EnvironmentOptions) {
+    this.cloudLayer.setEnabled(true);
     const isNight = options.timeOfDay === "night";
 
     this.scene.clearColor = isNight ? NIGHT_SKY : DAY_SKY;
@@ -228,6 +233,7 @@ export class EnvironmentController {
     this.hemi.intensity = this.baseHemiIntensity;
     this.sun.intensity = this.baseSunIntensity;
     this.sun.diffuse = this.baseSunDiffuse;
+    this.cloudLayer.setEnabled(false);
     this.setStarsEnabled(false);
     this.setSnowEnabled(false);
   }

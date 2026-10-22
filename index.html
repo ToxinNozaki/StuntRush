@@ -85,10 +85,40 @@
         background: #222; color: #ccc; border: 1px solid #555; cursor: pointer;
       }
       #backButton.hidden { display: none; }
+
+      #loadingScreen {
+        position: fixed; inset: 0; background: #000; z-index: 10000;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 18px; transition: opacity 0.6s ease;
+      }
+      #loadingScreen.hidden { opacity: 0; pointer-events: none; }
+      #loadingSpinner {
+        width: 36px; height: 36px; border-radius: 50%;
+        border: 2px solid #333; border-top-color: #999;
+        animation: loadingSpin 0.9s linear infinite;
+      }
+      @keyframes loadingSpin { to { transform: rotate(360deg); } }
+      #loadingBarTrack {
+        width: 220px; height: 3px; background: #262626; border: 1px solid #3a3a3a;
+      }
+      #loadingBarFill { width: 0%; height: 100%; background: #999; transition: width 0.25s ease; }
+      #loadingLabel {
+        color: #888; font: 12px/1.4 monospace; letter-spacing: 1px; text-transform: uppercase;
+      }
+
+      body.booting #menu, body.booting #renderCanvas { opacity: 0; }
+      #renderCanvas { transition: opacity 0.6s ease; }
+      #menu { transition: opacity 0.6s ease; }
     </style>
   </head>
-  <body>
+  <body class="booting">
     <canvas id="renderCanvas"></canvas>
+
+    <div id="loadingScreen">
+      <div id="loadingSpinner"></div>
+      <div id="loadingBarTrack"><div id="loadingBarFill"></div></div>
+      <div id="loadingLabel">Loading <span id="loadingPercent">0%</span></div>
+    </div>
 
     <div id="menu">
       <h1>Stunt Rush</h1>
