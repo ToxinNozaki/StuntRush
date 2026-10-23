@@ -1,6 +1,6 @@
 import * as BABYLON from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
-import { InputManager } from "./input";
+import { InputManager, describeKeyCode } from "./input";
 import { Game } from "./game";
 import { MenuUI } from "./menu";
 import { EngineAudio } from "./audio";
@@ -8,9 +8,11 @@ import {
   loadSettings,
   saveSettings,
   applyGraphicsPreset,
+  DEFAULT_KEY_BINDINGS,
   type GraphicsPreset,
   type TimeOfDay,
   type Weather,
+  type KeyBindings,
 } from "./settings";
 import "./debug/errorLogger"; // installed for its side effects: catches errors from frame 1
 import { DevOverlay } from "./debug/devOverlay";
@@ -67,6 +69,7 @@ async function main() {
   const environment = new EnvironmentController(scene, hemi, sun);
 
   const settings = loadSettings();
+  input.setBindings(settings.keyBindings);
   menuScene.setBodyColor(hueToHex(settings.bodyColorHue));
   let audio: EngineAudio | null = null;
 
@@ -250,11 +253,87 @@ async function main() {
     });
   }
 
+  // --- Rebindable controls ---
+  const controlsHint = document.getElementById("controlsHint")!;
+  const refreshControlsHint = () => {
+    const b = settings.keyBindings;
+    controlsHint.textContent =
+      `${describeKeyCode(b.forward)}${describeKeyCode(b.back)}${describeKeyCode(b.left)}${describeKeyCode(b.right)}` +
+      `/Arrows drive · ${describeKeyCode(b.airControl)} air control + Arrows/Mouse to flip · ` +
+      `${describeKeyCode(b.reset)} reset · ${describeKeyCode(b.headlights)} headlights`;
+  };
+  refreshControlsHint();
+
+  const bindButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>(".bindRow button[data-action]")
+  );
+  const refreshBindButtons = () => {
+    for (const button of bindButtons) {
+      const action = button.dataset.action as keyof KeyBindings;
+      button.textContent = describeKeyCode(settings.keyBindings[action]);
+    }
+  };
+  refreshBindButtons();
+
+  let listeningFor: HTMLButtonElement | null = null;
+  const stopListening = () => {
+    if (listeningFor) listeningFor.classList.remove("listening");
+    listeningFor = null;
+    window.removeEventListener("keydown", onBindKeydown, true);
+  };
+  const onBindKeydown = (e: KeyboardEvent) => {
+    if (!listeningFor) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.code === "Escape") {
+      stopListening();
+      refreshBindButtons();
+      return;
+    }
+    const action = listeningFor.dataset.action as keyof KeyBindings;
+    // Keep bindings 1:1 — if the pressed key is already bound elsewhere, swap it
+    // with whatever this action used to have, rather than letting two actions
+    // silently share one key.
+    const previousCode = settings.keyBindings[action];
+    const conflictAction = (Object.keys(settings.keyBindings) as (keyof KeyBindings)[]).find(
+      (a) => a !== action && settings.keyBindings[a] === e.code
+    );
+    settings.keyBindings = { ...settings.keyBindings, [action]: e.code };
+    if (conflictAction) settings.keyBindings[conflictAction] = previousCode;
+    saveSettings(settings);
+    input.setBindings(settings.keyBindings);
+    refreshControlsHint();
+    stopListening();
+    refreshBindButtons();
+  };
+
+  for (const button of bindButtons) {
+    button.addEventListener("click", () => {
+      stopListening();
+      listeningFor = button;
+      button.classList.add("listening");
+      button.textContent = "Press a key…";
+      window.addEventListener("keydown", onBindKeydown, true);
+    });
+  }
+
+  const resetBindingsButton = document.getElementById("resetBindings")!;
+  resetBindingsButton.addEventListener("click", () => {
+    stopListening();
+    settings.keyBindings = { ...DEFAULT_KEY_BINDINGS };
+    saveSettings(settings);
+    input.setBindings(settings.keyBindings);
+    refreshControlsHint();
+    refreshBindButtons();
+  });
+
   settingsButton.addEventListener("click", () => {
     menu.hide();
     settingsPanel.classList.remove("hidden");
   });
   settingsBack.addEventListener("click", () => {
+    stopListening();
+    refreshBindButtons();
     settingsPanel.classList.add("hidden");
     menu.show();
   });

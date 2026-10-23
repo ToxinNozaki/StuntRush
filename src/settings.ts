@@ -5,6 +5,31 @@ export type GraphicsPreset = "low" | "medium" | "high";
 export type TimeOfDay = "day" | "night";
 export type Weather = "clear" | "cloudy" | "snow";
 
+/**
+ * Rebindable primary drive/action keys. ArrowUp/Down/Left/Right are NOT in here —
+ * they're reserved as the fixed GTA-style air-control keys (see input.ts) and stay
+ * usable no matter how the player rebinds forward/back/left/right.
+ */
+export interface KeyBindings {
+  forward: string;
+  back: string;
+  left: string;
+  right: string;
+  airControl: string;
+  reset: string;
+  headlights: string;
+}
+
+export const DEFAULT_KEY_BINDINGS: KeyBindings = {
+  forward: "KeyW",
+  back: "KeyS",
+  left: "KeyA",
+  right: "KeyD",
+  airControl: "Space",
+  reset: "KeyR",
+  headlights: "KeyH",
+};
+
 export interface Settings {
   graphicsPreset: GraphicsPreset;
   masterVolume: number; // 0..1
@@ -15,6 +40,7 @@ export interface Settings {
   carId: string;
   /** Body paint hue, 0-360 — the color slider's only input (see cars.ts hueToHex). */
   bodyColorHue: number;
+  keyBindings: KeyBindings;
 }
 
 const STORAGE_KEY = "stuntrush_settings_v1";
@@ -28,16 +54,23 @@ const DEFAULTS: Settings = {
   multiplayerEnabled: false,
   carId: DEFAULT_CAR_ID,
   bodyColorHue: DEFAULT_BODY_HUE,
+  keyBindings: DEFAULT_KEY_BINDINGS,
 };
 
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULTS };
+    if (!raw) return { ...DEFAULTS, keyBindings: { ...DEFAULT_KEY_BINDINGS } };
     const parsed = JSON.parse(raw);
-    return { ...DEFAULTS, ...parsed };
+    // Merge keyBindings separately so an older save (or one missing a newly-added
+    // action) still fills in every key instead of losing the rest to a shallow spread.
+    return {
+      ...DEFAULTS,
+      ...parsed,
+      keyBindings: { ...DEFAULT_KEY_BINDINGS, ...(parsed.keyBindings ?? {}) },
+    };
   } catch {
-    return { ...DEFAULTS };
+    return { ...DEFAULTS, keyBindings: { ...DEFAULT_KEY_BINDINGS } };
   }
 }
 

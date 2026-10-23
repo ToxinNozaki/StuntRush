@@ -10,7 +10,7 @@
 > file is the durable, always-on-disk copy that survives a chat's context
 > filling up.
 >
-> Last synced: 2026-10-22 (doc rev 27)
+> Last synced: 2026-10-22 (doc rev 29)
 
 ---
 
@@ -141,14 +141,14 @@ Five phases, each gated before the next begins:
 
 Each phase is a gate, not just a step: Phase 0 is pure tech validation on a real target device before a single hour goes into art. Phase 1 exists specifically to answer "does this feel like MSC2 yet?" before any track content gets built around it. Multiplayer is deliberately phase 4 on paper — added on top of a complete single-player game rather than built in from day one — but in practice multiplayer and deployment shipped early (see Status below); that deviation worked out fine because multiplayer was built as a genuinely optional layer, per its own risk mitigation above.
 
-## Open Questions (resolved)
+## Open Questions
 
-- **Signaling for multiplayer**: support both a self-hosted LAN relay and a free cloud-hosted relay, exposed as a settings toggle so it's a per-session pick (e.g. by the teacher) rather than a build-time lock-in.
-- **Hosting**: testing and early builds go up on GitHub (GitHub Pages for the static bundle). The actual school-website integration (iframe vs. direct link, who controls that server) is a later decision.
-- **Target devices**: a mix — including school Chromebooks, which already run MSC2 itself fine, confirming real WebGL2 performance headroom on that hardware. Keyboard stays the primary control scheme; touch remains a nice-to-have.
-- **Session size**: 4 players max — the mesh/P2P signaling design (each client connects directly to every other) stays simple at this size.
-- **School approval process**: none — this is a free, informal project, not going through a formal review.
-- **Car model**: skip the McLaren Senna OBJ (too dense to decimate); sourced a different, already game-ready model instead (the Nissan 300ZX currently in use).
+All six earlier open questions are settled (multiplayer signaling as a settings toggle, GitHub Pages hosting, Chromebook-class target devices confirmed, 4-player session cap, no formal school approval process, Nissan 300ZX as the car model) and folded into the sections above. New ones below, as of the large new asset drop and Phase 2 wrapping up:
+
+- [ ] A large new asset library just landed (pedestrian/character models, a rigged hand, extra car packs, world-building/road/building kits, HDRIs, fonts, car sound packs) at `C:\Users\hu4da\Downloads\Stunt Rush`. How much of this targets v2/backlog versus anything that should go in before v1 ships?
+- [ ] Ideas.txt dropped a batch of new feature ideas (flying planes, lightweight traffic AI, a car + map select screen with baked angled-icon renders, a switchable in-game camera — 3rd person / first-person / cinematic, a couple of just-for-fun special cars). Rough priority order for these once v1 ships?
+- [ ] A "REA" MCP meant to let Claude reference GTA's files for driving-feel inspiration isn't showing up as connected or available this session — installed under a different name, or should that research path be skipped for now?
+- [ ] The new asset folder (several GB of 4K Blender/texture source files) is meant to move into the repo under a new `game assets` folder for organization. Since this repo is public and deployed via GitHub Pages, do you want the raw source files actually committed to git (even if `.gitignore`d from the build), or kept organized locally outside the repo and just referenced from there?
 
 ---
 
@@ -163,17 +163,19 @@ Build order deviated from the phased roadmap above: multiplayer and deployment s
 - **Car selection: done, reworked** — 3 performance profiles on the one chassis/physics rig (Stock / Sport / GT — renamed from the original color-coded names), each with a real power-vs-grip stat trade-off. Paint color is **fully decoupled** from the performance pick: a rainbow hue slider (0-359°) on the menu picks any color via HSL (fixed saturation/lightness tuned for glossy paint — see `hueToHex()` in `src/cars.ts`), applied live to the menu preview and carried into gameplay via `settings.bodyColorHue`. Body paint material is `Material.001`, confirmed by raycasting the live rendered body panel with `scene.pick()` rather than guessing from the raw glTF JSON (its baseColor values don't reliably indicate which material is which — `Material.004` looked like a plausible body-paint candidate by color but turned out to be the wheels). Satisfies the v1 checklist's "2-3 selectable cars" item. License plate text customization (`numberplate.001`) is still unbuilt.
 - **UI polish**: branded logo (black outline + drop shadow from the original art, with an animated gradient shimmer masked to just the white fill using a second, effects-free export), a boot loading screen, scene fade transitions on Play/return-to-menu, hover/press feedback on every button, Settings panel fades + scales in.
 - **Robustness fix**: Havok was stepping physics with the raw variable frame delta, so a multi-second stall (tab backgrounded, a stutter) made it take one gigantic step and could launch the car into orbit. Switched to Havok's fixed internal timestep. Also added a kill-plane for any off-map fall as a second line of defense.
+- **New asset dump (not yet integrated)**: a large external asset library landed at `C:\Users\hu4da\Downloads\Stunt Rush` — pedestrian/character models + a rigged hand, several more car packs (incl. a Hellcat and Porsche 911 Turbo with matching sound sets), world-building kits (roads, buildings, bridges, electrical props), PBR ground/wall material sets, HDRIs, and game fonts/logos. Queued for a later pass: move it into the repo under a new `game assets` folder. See Open Questions for scope/organization calls on this.
 
-### What's left for v1 (per the must-have checklist above)
+### v1 status: feature-complete
 
-- **Rebindable controls** — the only remaining unbuilt v1 must-have. Keyboard is currently hardcoded (WASD/arrows); needs a rebinding UI + a configurable keymap persisted to `localStorage`. This is the single item standing between "in progress" and "v1 complete."
+- **Rebindable controls — done.** A Controls group in Settings lets the player rebind Forward/Back/Left/Right/Air control/Reset/Headlights to any key (click the button, press a key; Escape cancels). Rebinding to a key already in use swaps it with whatever the target action had, so two actions never silently share one key. Persisted in `settings.keyBindings` (`src/settings.ts`), applied live via `InputManager.setBindings()` (`src/input.ts`), with a "Reset to defaults" button. `ArrowUp/Down/Left/Right` are intentionally **not** rebindable — they stay reserved as the fixed GTA-style air-control keys (pitch/roll while airborne) no matter how the drive keys are remapped, and also still work as a secondary drive input per the original "full keyboard scheme" ask. The in-game control hint updates live to reflect the current bindings.
 
-Everything else on the v1 must-have list is built: free-roam world, arcade handling + air control, instant reset, chase camera with FOV kick, full world (Phase 2), minimal HUD, car selection, shared multiplayer presence.
+This was the last item on the v1 must-have checklist. Everything is now built: free-roam world, arcade handling + air control, instant reset, chase camera with FOV kick, full world (Phase 2), minimal HUD, car selection, shared multiplayer presence, and rebindable controls.
 
 ## Backlog — Future Features (post-v1)
 
 - **Multiplayer text chat** (multiplayer-only — not planned for single-player). Note: the Risks table's privacy mitigation row currently reads "No chat text input... nothing for an IT or privacy review to flag" — adding chat reopens that specific mitigation and needs its own pass (no persistence, basic filtering) before it ships, not just a feature flag.
 - **License plate text customization** — the material (`numberplate.001`) is already identified; just needs a UI + a `DynamicTexture` swap.
+- **From Ideas.txt (2026-10-22)**: flying planes in the sky; lightweight traffic AI cars; a car + map select screen before Play, with baked angled-icon car renders (angled light source, CAD-render style); a switchable in-game camera — 3rd person / first-person in-car / cinematic — on a dedicated key; a couple of just-for-fun special cars (a PS1-style car, Lightning McQueen) pulled from the new asset dump.
 
 ## Key implementation facts worth knowing (not in the original doc, learned during the build)
 
@@ -182,4 +184,5 @@ Everything else on the v1 must-have list is built: free-roam world, arcade handl
 - **Havok plugin is constructed with `useDeltaForWorldStep: false`** (`src/main.ts`) — fixed internal timestep, not the raw frame delta. Don't change this back without re-adding some other safeguard against frame-hitch physics explosions.
 - **Never rotate a physics-enabled mesh via `.rotation.axis = value` in `src/world.ts` — always use `rotationQuaternion` directly (see the `setEulerRotation()` helper).** `createInstance()` inherits whatever `rotationQuaternion` the base mesh had baked in from its own `PhysicsAggregate` creation (Babylon auto-converts a mesh's Euler `.rotation` to a quaternion the first time a physics aggregate is created for it). Any instance created *after* that conversion starts with that same quaternion, and later setting `.rotation.axis` on it does nothing — `rotationQuaternion` wins once it's non-null, silently. This was live and broken in the half-pipe's right wall for a while (leaning the same direction as the left wall) before it got caught by actually reading back world-matrix transforms in the running scene, not by eyeballing a screenshot. If you add a new rotated, physics-enabled piece, use `setEulerRotation()` (or set `rotationQuaternion` directly) — never `.rotation.x/y/z`.
 - **GitHub Pages deploy**: public repo required (private repos need a paid plan for Pages). `vite.config.ts` sets `base: "/StuntRush/"` for the subpath; any new asset reference in `index.html` must use `%BASE_URL%` (not a bare `/`) or it'll resolve to the wrong domain root on Pages.
+- **Keybindings are stored separately from the rest of Settings' flat fields**: `settings.keyBindings` is its own nested object (`src/settings.ts`), merged key-by-key on load (`{ ...DEFAULT_KEY_BINDINGS, ...parsed.keyBindings }`) rather than via the top-level shallow spread — otherwise an old save missing a newly-added action would silently lose every other binding instead of just filling in the gap. If you add a new rebindable action, add it to `KeyBindings` and `DEFAULT_KEY_BINDINGS`, not just the UI.
 - Live link: **https://toxinnozaki.github.io/StuntRush/** — auto-updates on every push to `master` via `.github/workflows/deploy.yml`.

@@ -197,7 +197,7 @@ export class VehicleController {
       return;
     }
 
-    if (this.input.consumeKeyPress("KeyH")) {
+    if (this.input.headlightsPressed) {
       this.toggleHeadlights();
     }
 
