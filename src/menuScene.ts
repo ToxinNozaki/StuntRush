@@ -1,7 +1,7 @@
 import * as BABYLON from "@babylonjs/core";
 import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
 import "@babylonjs/loaders/glTF";
-import { applyBodyColor } from "./carModel";
+import { applyBodyColor, applyPlateText } from "./carModel";
 
 const MODEL_URL = `${import.meta.env.BASE_URL}models/nissan-300zx.glb`;
 
@@ -17,6 +17,7 @@ export class MenuScene {
   private buildPromise: Promise<void> | null = null;
   private previewMeshes: BABYLON.AbstractMesh[] = [];
   private pendingColorHex: string | null = null;
+  private pendingPlateText: string | null = null;
 
   private readonly scene: BABYLON.Scene;
   private readonly camera: BABYLON.UniversalCamera;
@@ -72,6 +73,15 @@ export class MenuScene {
     }
   }
 
+  /** Updates the turntable car's plate; safe to call before the model has loaded. */
+  setPlateText(text: string) {
+    if (this.previewMeshes.length > 0) {
+      applyPlateText(this.scene, this.previewMeshes, text);
+    } else {
+      this.pendingPlateText = text;
+    }
+  }
+
   hide() {
     this.root?.setEnabled(false);
     // Neither stop() nor reset() actually clears already-emitted flakes (up to 11s
@@ -95,6 +105,10 @@ export class MenuScene {
     if (this.pendingColorHex) {
       applyBodyColor(this.previewMeshes, this.pendingColorHex);
       this.pendingColorHex = null;
+    }
+    if (this.pendingPlateText) {
+      applyPlateText(this.scene, this.previewMeshes, this.pendingPlateText);
+      this.pendingPlateText = null;
     }
 
     const bounds = root.getHierarchyBoundingVectors(true);

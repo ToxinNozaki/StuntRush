@@ -137,7 +137,8 @@ async function main() {
       environment.gripMultiplier,
       settings.multiplayerEnabled ? SIGNALING_URL : null,
       carId,
-      hueToHex(settings.bodyColorHue)
+      hueToHex(settings.bodyColorHue),
+      settings.plateText
     );
     hud.classList.remove("hidden");
     backButton.classList.remove("hidden");
@@ -159,6 +160,16 @@ async function main() {
     paintHueValue.textContent = `${settings.bodyColorHue}°`;
     saveSettings(settings);
     menuScene.setBodyColor(hueToHex(settings.bodyColorHue));
+  });
+
+  // --- License plate text: free-typed, sanitized/capped when it's actually drawn. ---
+  const plateInput = document.getElementById("plateInput") as HTMLInputElement;
+  plateInput.value = settings.plateText;
+  menuScene.setPlateText(settings.plateText);
+  plateInput.addEventListener("input", () => {
+    settings.plateText = plateInput.value;
+    saveSettings(settings);
+    menuScene.setPlateText(settings.plateText);
   });
 
   setLoadingProgress(55);

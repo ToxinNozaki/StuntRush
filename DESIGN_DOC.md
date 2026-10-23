@@ -10,7 +10,7 @@
 > file is the durable, always-on-disk copy that survives a chat's context
 > filling up.
 >
-> Last synced: 2026-10-22 (doc rev 29)
+> Last synced: 2026-10-23 (doc rev 30)
 
 ---
 
@@ -174,8 +174,11 @@ This was the last item on the v1 must-have checklist. Everything is now built: f
 ## Backlog — Future Features (post-v1)
 
 - **Multiplayer text chat** (multiplayer-only — not planned for single-player). Note: the Risks table's privacy mitigation row currently reads "No chat text input... nothing for an IT or privacy review to flag" — adding chat reopens that specific mitigation and needs its own pass (no persistence, basic filtering) before it ships, not just a feature flag.
-- **License plate text customization** — the material (`numberplate.001`) is already identified; just needs a UI + a `DynamicTexture` swap.
 - **From Ideas.txt (2026-10-22)**: flying planes in the sky; lightweight traffic AI cars; a car + map select screen before Play, with baked angled-icon car renders (angled light source, CAD-render style); a switchable in-game camera — 3rd person / first-person in-car / cinematic — on a dedicated key; a couple of just-for-fun special cars (a PS1-style car, Lightning McQueen) pulled from the new asset dump.
+
+### Shipped post-v1 (2026-10-23)
+
+- **License plate text customization — done.** A "Plate" text field on the menu (up to 8 characters, sanitized/capped in `applyPlateText()` in `src/carModel.ts`) drives a freshly-drawn `DynamicTexture` swapped onto the plate material, live on the menu preview car and carried into gameplay. Turns out the model's front and rear plates share one material instance, so the one texture swap covers both — found by giving the material a bright emissive color and screenshotting the rendered car (same verification method as the body-paint material), not by trusting the glTF material name alone.
 
 ## Key implementation facts worth knowing (not in the original doc, learned during the build)
 
@@ -184,5 +187,6 @@ This was the last item on the v1 must-have checklist. Everything is now built: f
 - **Havok plugin is constructed with `useDeltaForWorldStep: false`** (`src/main.ts`) — fixed internal timestep, not the raw frame delta. Don't change this back without re-adding some other safeguard against frame-hitch physics explosions.
 - **Never rotate a physics-enabled mesh via `.rotation.axis = value` in `src/world.ts` — always use `rotationQuaternion` directly (see the `setEulerRotation()` helper).** `createInstance()` inherits whatever `rotationQuaternion` the base mesh had baked in from its own `PhysicsAggregate` creation (Babylon auto-converts a mesh's Euler `.rotation` to a quaternion the first time a physics aggregate is created for it). Any instance created *after* that conversion starts with that same quaternion, and later setting `.rotation.axis` on it does nothing — `rotationQuaternion` wins once it's non-null, silently. This was live and broken in the half-pipe's right wall for a while (leaning the same direction as the left wall) before it got caught by actually reading back world-matrix transforms in the running scene, not by eyeballing a screenshot. If you add a new rotated, physics-enabled piece, use `setEulerRotation()` (or set `rotationQuaternion` directly) — never `.rotation.x/y/z`.
 - **GitHub Pages deploy**: public repo required (private repos need a paid plan for Pages). `vite.config.ts` sets `base: "/StuntRush/"` for the subpath; any new asset reference in `index.html` must use `%BASE_URL%` (not a bare `/`) or it'll resolve to the wrong domain root on Pages.
+- **The license plate material (`numberplate.001` / mesh `Object_18`) is shared between the front and rear plate geometry** — swapping its `albedoTexture` once (`applyPlateText()` in `src/carModel.ts`) updates both plates, even though only one mesh matches that material name in a `scene.meshes` filter. Don't assume a second plate mesh needs its own texture swap if you ever add one.
 - **Keybindings are stored separately from the rest of Settings' flat fields**: `settings.keyBindings` is its own nested object (`src/settings.ts`), merged key-by-key on load (`{ ...DEFAULT_KEY_BINDINGS, ...parsed.keyBindings }`) rather than via the top-level shallow spread — otherwise an old save missing a newly-added action would silently lose every other binding instead of just filling in the gap. If you add a new rebindable action, add it to `KeyBindings` and `DEFAULT_KEY_BINDINGS`, not just the UI.
 - Live link: **https://toxinnozaki.github.io/StuntRush/** — auto-updates on every push to `master` via `.github/workflows/deploy.yml`.

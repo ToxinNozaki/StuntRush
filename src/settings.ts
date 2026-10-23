@@ -41,7 +41,11 @@ export interface Settings {
   /** Body paint hue, 0-360 — the color slider's only input (see cars.ts hueToHex). */
   bodyColorHue: number;
   keyBindings: KeyBindings;
+  /** Rear plate text, free-typed, sanitized/capped in carModel.ts before it's drawn. */
+  plateText: string;
 }
+
+export const DEFAULT_PLATE_TEXT = "STUNT";
 
 const STORAGE_KEY = "stuntrush_settings_v1";
 
@@ -55,6 +59,7 @@ const DEFAULTS: Settings = {
   carId: DEFAULT_CAR_ID,
   bodyColorHue: DEFAULT_BODY_HUE,
   keyBindings: DEFAULT_KEY_BINDINGS,
+  plateText: DEFAULT_PLATE_TEXT,
 };
 
 export function loadSettings(): Settings {

@@ -62,7 +62,8 @@ export class Game {
     gripMultiplier = 1,
     signalingUrl: string | null = null,
     carId?: string,
-    bodyColorHex?: string
+    bodyColorHex?: string,
+    plateText?: string
   ): Promise<void> {
     if (this.isLoaded) this.dispose();
 
@@ -73,6 +74,7 @@ export class Game {
     vehicle.setGripMultiplier(gripMultiplier);
     if (carId) vehicle.setCarSpec(getCarSpec(carId));
     if (bodyColorHex) vehicle.setBodyColor(bodyColorHex);
+    if (plateText) vehicle.setPlateText(plateText);
     this.vehicle = vehicle;
     void vehicle.attachVisual().then(() => this.onCarVisualReady?.(vehicle.visualMeshes));
 

@@ -87,6 +87,15 @@
       }
       #colorSlider::-moz-range-track { height: 18px; border: none; }
 
+      #plateRow { width: 220px; margin-bottom: 14px; }
+      #plateLabel { font-size: 11px; opacity: 0.6; margin-bottom: 4px; letter-spacing: 1px; }
+      #plateInput {
+        width: 100%; box-sizing: border-box; padding: 7px 8px; font: 13px monospace;
+        letter-spacing: 2px; text-transform: uppercase; background: #1a1a1a; color: #eee;
+        border: 1px solid #3a3a3a;
+      }
+      #plateInput:focus { outline: none; border-color: #888; }
+
       #envToggles { width: 220px; margin-bottom: 14px; }
       .envRow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
       .envRow span { width: 60px; font-size: 11px; opacity: 0.75; }
@@ -215,6 +224,10 @@
       <div id="paintRow">
         <div id="paintLabel"><span>Paint</span><span id="paintHueValue">210°</span></div>
         <input type="range" id="colorSlider" min="0" max="359" value="210" />
+      </div>
+      <div id="plateRow">
+        <div id="plateLabel">Plate</div>
+        <input type="text" id="plateInput" maxlength="8" value="STUNT" spellcheck="false" />
       </div>
       <div id="envToggles">
         <div class="envRow">

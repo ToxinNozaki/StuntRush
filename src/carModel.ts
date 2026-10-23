@@ -25,6 +25,62 @@ export function applyBodyColor(meshes: BABYLON.AbstractMesh[], hexColor: string)
   if (paint) paint.albedoColor = BABYLON.Color3.FromHexString(hexColor);
 }
 
+/** The license plate's material — confirmed the same way as the body paint, by giving
+ *  it a bright emissive color and screenshotting the rendered car rather than trusting
+ *  the glTF's material name alone (it happens to match here, but that's luck, not a
+ *  rule this file's other material names follow). Only one mesh (`Object_18`) matches
+ *  this material by name, but the front and rear plates both render the swapped-in
+ *  texture — they apparently share one material instance in the source model — so one
+ *  swap covers both without any extra plumbing. */
+const PLATE_MATERIAL_NAME = "numberplate.001";
+const PLATE_TEXTURE_NAME = "plateTex";
+
+function findPlateMaterial(meshes: BABYLON.AbstractMesh[]): BABYLON.PBRMaterial | null {
+  for (const mesh of meshes) {
+    if (mesh.material?.name === PLATE_MATERIAL_NAME) {
+      return mesh.material as BABYLON.PBRMaterial;
+    }
+  }
+  return null;
+}
+
+function sanitizePlateText(text: string): string {
+  return text.toUpperCase().replace(/[^A-Z0-9 -]/g, "").slice(0, 8);
+}
+
+function buildPlateTexture(scene: BABYLON.Scene, text: string): BABYLON.DynamicTexture {
+  const width = 512;
+  const height = 256;
+  const texture = new BABYLON.DynamicTexture(PLATE_TEXTURE_NAME, { width, height }, scene, false);
+  const ctx = texture.getContext() as CanvasRenderingContext2D;
+
+  ctx.fillStyle = "#e9e5d6";
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = "#17171a";
+  ctx.lineWidth = 10;
+  ctx.strokeRect(8, 8, width - 16, height - 16);
+
+  ctx.fillStyle = "#17171a";
+  ctx.font = "bold 108px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(sanitizePlateText(text) || "STUNT", width / 2, height / 2 + 10);
+
+  texture.update();
+  return texture;
+}
+
+/** Swaps in a freshly-drawn plate texture. Safe to call repeatedly (e.g. live, per
+ *  keystroke, on the menu preview car) — only disposes a texture this function itself
+ *  created, never the model's original baked-in plate art. */
+export function applyPlateText(scene: BABYLON.Scene, meshes: BABYLON.AbstractMesh[], text: string) {
+  const plate = findPlateMaterial(meshes);
+  if (!plate) return;
+  const previous = plate.albedoTexture;
+  plate.albedoTexture = buildPlateTexture(scene, text);
+  if (previous && previous.name === PLATE_TEXTURE_NAME) previous.dispose();
+}
+
 export interface CarVisual {
   root: BABYLON.TransformNode;
   allMeshes: BABYLON.AbstractMesh[];
@@ -46,7 +102,8 @@ export async function attachCarVisual(
   chassis: BABYLON.Mesh,
   targetLength: number,
   groundClearance: number,
-  bodyColorHex?: string
+  bodyColorHex?: string,
+  plateText?: string
 ): Promise<CarVisual> {
   const result = await ImportMeshAsync(MODEL_URL, scene);
   const root = new BABYLON.TransformNode("carVisualRoot", scene);
@@ -58,6 +115,7 @@ export async function attachCarVisual(
   }
 
   if (bodyColorHex) applyBodyColor(result.meshes, bodyColorHex);
+  if (plateText) applyPlateText(scene, result.meshes, plateText);
 
   root.parent = chassis;
   root.position.setAll(0);

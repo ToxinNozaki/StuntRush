@@ -55,6 +55,7 @@ export class VehicleController {
   private carGripMultiplier = 1;
   /** Set independently by the paint color slider — a performance pick never locks in a color. */
   private bodyColorHex: string | null = null;
+  private plateText: string | null = null;
 
   private groundedWheelCount = 0;
   private spawnPosition: BABYLON.Vector3;
@@ -117,7 +118,14 @@ export class VehicleController {
 
   /** Swaps in the real car mesh over the placeholder box. Fire-and-forget from the caller. */
   async attachVisual(): Promise<void> {
-    const visual = await attachCarVisual(this.scene, this.chassis, 4.3, 0.32, this.bodyColorHex ?? undefined);
+    const visual = await attachCarVisual(
+      this.scene,
+      this.chassis,
+      4.3,
+      0.32,
+      this.bodyColorHex ?? undefined,
+      this.plateText ?? undefined
+    );
     this.visualRoot = visual.root;
     this.carVisual = visual;
     for (const light of visual.headlightLights) light.setEnabled(this.headlightsOn);
@@ -132,6 +140,11 @@ export class VehicleController {
   /** Call before attachVisual() so the paint color is baked into the import. */
   setBodyColor(hex: string) {
     this.bodyColorHex = hex;
+  }
+
+  /** Call before attachVisual() so the plate text is baked into the import. */
+  setPlateText(text: string) {
+    this.plateText = text;
   }
 
   toggleHeadlights() {
