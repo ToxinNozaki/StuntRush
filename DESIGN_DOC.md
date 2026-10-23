@@ -10,7 +10,7 @@
 > file is the durable, always-on-disk copy that survives a chat's context
 > filling up.
 >
-> Last synced: 2026-10-23 (doc rev 34)
+> Last synced: 2026-10-23 (doc rev 35)
 >
 > **Game name: "Go-Goated Racing"** — that's the in-game branding (menu logo, page
 > title). The repo name (`StuntRush`), the npm package name (`stuntrush`), and this
@@ -154,9 +154,10 @@ Each phase is a gate, not just a step: Phase 0 is pure tech validation on a real
 All six earlier open questions are settled (multiplayer signaling as a settings toggle, GitHub Pages hosting, Chromebook-class target devices confirmed, 4-player session cap, no formal school approval process, Nissan 300ZX as the car model) and folded into the sections above. New ones below, as of the large new asset drop and Phase 2 wrapping up:
 
 - [ ] A large new asset library just landed (pedestrian/character models, a rigged hand, extra car packs, world-building/road/building kits, HDRIs, fonts, car sound packs) at `C:\Users\hu4da\Downloads\Stunt Rush`. How much of this targets v2/backlog versus anything that should go in before v1 ships?
-- [ ] Ideas.txt dropped a batch of new feature ideas (flying planes, lightweight traffic AI, a car + map select screen with baked angled-icon renders, a switchable in-game camera — 3rd person / first-person / cinematic, a couple of just-for-fun special cars). Rough priority order for these once v1 ships?
+- [ ] Ideas.txt dropped a batch of new feature ideas (flying planes, lightweight traffic AI, a car + map select screen with baked angled-icon renders, a couple of just-for-fun special cars — the switchable-camera idea from this list already shipped). Rough priority order for the rest?
 - [ ] A "REA" MCP meant to let Claude reference GTA's files for driving-feel inspiration isn't showing up as connected or available this session — installed under a different name, or should that research path be skipped for now?
-- [ ] The new asset folder (several GB of 4K Blender/texture source files) is meant to move into the repo under a new `game assets` folder for organization. Since this repo is public and deployed via GitHub Pages, do you want the raw source files actually committed to git (even if `.gitignore`d from the build), or kept organized locally outside the repo and just referenced from there?
+
+**Resolved 2026-10-23:** raw/source assets (the several-GB `C:\Users\hu4da\Downloads\Stunt Rush` dump — unprocessed 4K textures, Blender project files, anything not yet converted for the game) stay **local only, never committed to the repo**. Only processed, game-ready assets actually pulled into the game get committed — same pattern already used for the Nissan model (one `.glb`) and its 6 sound clips. Reasoning: the repo is public, so anything committed is exposed indefinitely (even past deletion, via git history); a lot of this source material is sourced the same way the car model/sounds were — free/community packs, not necessarily cleared for redistribution — and raw 4K/Blender files would bloat the repo for no reason since the game never loads them directly anyway. Applies to any future asset integration, not just this drop.
 
 ---
 
