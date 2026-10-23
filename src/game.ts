@@ -6,6 +6,7 @@ import { MultiplayerClient } from "./multiplayer";
 import { RemoteCar } from "./remoteCar";
 import { getCarSpec } from "./cars";
 import { sanitizeChatText, sanitizeNickname } from "./chat";
+import { TrafficController } from "./traffic";
 
 export type CameraMode = "chase" | "cockpit" | "cinematic";
 const CAMERA_MODE_ORDER: CameraMode[] = ["chase", "cockpit", "cinematic"];
@@ -22,6 +23,7 @@ export class Game {
 
   private world: BuiltWorld | null = null;
   private vehicle: VehicleController | null = null;
+  private traffic: TrafficController | null = null;
   private camera: BABYLON.UniversalCamera | null = null;
   private renderObserver: BABYLON.Observer<BABYLON.Scene> | null = null;
 
@@ -95,6 +97,9 @@ export class Game {
     if (plateText) vehicle.setPlateText(plateText);
     this.vehicle = vehicle;
     void vehicle.attachVisual().then(() => this.onCarVisualReady?.(vehicle.visualMeshes));
+
+    this.traffic = new TrafficController(this.scene);
+    void this.traffic.spawn();
 
     if (signalingUrl) this.startMultiplayer(signalingUrl);
 
@@ -231,6 +236,8 @@ export class Game {
     }
     this.vehicle?.dispose();
     this.vehicle = null;
+    this.traffic?.dispose();
+    this.traffic = null;
     this.multiplayer?.dispose();
     this.multiplayer = null;
     for (const remote of this.remoteCars.values()) remote.dispose();
