@@ -36,6 +36,23 @@ export class EnvironmentController {
   /** Multiplies tire grip — weather's one real gameplay effect, not just visual. */
   gripMultiplier = 1;
 
+  // Distant background planes — purely atmospheric (no collision, no gameplay
+  // effect), one in flight at a time, respawning on a random delay. My own addition
+  // on top of the "flying planes in the sky" backlog idea: nav/strobe lights so
+  // there's something to notice even when the plane itself is a tiny silhouette.
+  private planeActive = false;
+  private planeRoot: BABYLON.TransformNode | null = null;
+  private planeProgress = 0;
+  private planeDurationSec = 1;
+  private planeStart = BABYLON.Vector3.Zero();
+  private planeEnd = BABYLON.Vector3.Zero();
+  private planeWaitSec = 0;
+  private readonly planeBodyMaterial: BABYLON.StandardMaterial;
+  private readonly planeRedLightMaterial: BABYLON.StandardMaterial;
+  private readonly planeGreenLightMaterial: BABYLON.StandardMaterial;
+  private readonly planeWhiteLightMaterial: BABYLON.StandardMaterial;
+  private planeUpdateObserver: BABYLON.Observer<BABYLON.Scene> | null = null;
+
   constructor(scene: BABYLON.Scene, hemi: BABYLON.HemisphericLight, sun: BABYLON.DirectionalLight) {
     this.scene = scene;
     this.hemi = hemi;
@@ -69,6 +86,22 @@ export class EnvironmentController {
       tex.uOffset += this.scene.getEngine().getDeltaTime() * 0.000008;
       tex.vOffset += this.scene.getEngine().getDeltaTime() * 0.000004;
     });
+
+    this.planeBodyMaterial = new BABYLON.StandardMaterial("planeBodyMat", scene);
+    this.planeBodyMaterial.disableLighting = true;
+    this.planeBodyMaterial.emissiveColor = new BABYLON.Color3(0.82, 0.84, 0.88);
+    this.planeRedLightMaterial = new BABYLON.StandardMaterial("planeRedLightMat", scene);
+    this.planeRedLightMaterial.disableLighting = true;
+    this.planeRedLightMaterial.emissiveColor = new BABYLON.Color3(1, 0.1, 0.1);
+    this.planeGreenLightMaterial = new BABYLON.StandardMaterial("planeGreenLightMat", scene);
+    this.planeGreenLightMaterial.disableLighting = true;
+    this.planeGreenLightMaterial.emissiveColor = new BABYLON.Color3(0.1, 1, 0.2);
+    this.planeWhiteLightMaterial = new BABYLON.StandardMaterial("planeWhiteLightMat", scene);
+    this.planeWhiteLightMaterial.disableLighting = true;
+    this.planeWhiteLightMaterial.emissiveColor = new BABYLON.Color3(1, 1, 1);
+
+    this.planeWaitSec = 8 + Math.random() * 20;
+    this.planeUpdateObserver = scene.onBeforeRenderObservable.add(() => this.updatePlane());
   }
 
   /** Keeps the snow emission box centered on the car — the box is small on purpose
@@ -80,6 +113,7 @@ export class EnvironmentController {
 
   apply(options: EnvironmentOptions) {
     this.cloudLayer.setEnabled(true);
+    this.planeActive = true;
     const isNight = options.timeOfDay === "night";
 
     this.scene.clearColor = isNight ? NIGHT_SKY : DAY_SKY;
@@ -236,13 +270,115 @@ export class EnvironmentController {
     this.cloudLayer.setEnabled(false);
     this.setStarsEnabled(false);
     this.setSnowEnabled(false);
+    this.planeActive = false;
+    this.planeRoot?.dispose(false, true);
+    this.planeRoot = null;
+  }
+
+  /** One plane in flight at a time, high above the cloud layer, dead straight, slow
+   *  enough that it reads as "distant" rather than "buzzing the track". */
+  private updatePlane() {
+    if (!this.planeActive) return;
+    const dt = this.scene.getEngine().getDeltaTime() / 1000;
+
+    if (!this.planeRoot) {
+      this.planeWaitSec -= dt;
+      if (this.planeWaitSec <= 0) this.spawnPlane();
+      return;
+    }
+
+    this.planeProgress += dt / this.planeDurationSec;
+    if (this.planeProgress >= 1) {
+      this.planeRoot.dispose(false, true);
+      this.planeRoot = null;
+      this.planeWaitSec = 15 + Math.random() * 25;
+      return;
+    }
+    this.planeRoot.position = BABYLON.Vector3.Lerp(this.planeStart, this.planeEnd, this.planeProgress);
+  }
+
+  private spawnPlane() {
+    const altitude = 230 + Math.random() * 50; // comfortably above the cloud layer (y=180)
+    const span = 320;
+    const z = (Math.random() * 2 - 1) * 180;
+    const leftToRight = Math.random() < 0.5;
+    this.planeStart = new BABYLON.Vector3(leftToRight ? -span : span, altitude, z);
+    this.planeEnd = new BABYLON.Vector3(
+      leftToRight ? span : -span,
+      altitude,
+      z + (Math.random() * 2 - 1) * 60
+    );
+    this.planeDurationSec = 40 + Math.random() * 20;
+    this.planeProgress = 0;
+
+    const root = this.buildPlaneMesh();
+    root.position.copyFrom(this.planeStart);
+    const forward = this.planeEnd.subtract(this.planeStart).normalize();
+    root.rotation.y = Math.atan2(forward.x, forward.z);
+    this.planeRoot = root;
+  }
+
+  private buildPlaneMesh(): BABYLON.TransformNode {
+    const root = new BABYLON.TransformNode("plane", this.scene);
+
+    const fuselage = BABYLON.MeshBuilder.CreateCylinder(
+      "planeFuselage",
+      { height: 7, diameterTop: 0.5, diameterBottom: 0.7, tessellation: 6 },
+      this.scene
+    );
+    fuselage.rotation.x = Math.PI / 2;
+    fuselage.material = this.planeBodyMaterial;
+    fuselage.parent = root;
+
+    const wings = BABYLON.MeshBuilder.CreateBox("planeWings", { width: 9, height: 0.15, depth: 1.1 }, this.scene);
+    wings.material = this.planeBodyMaterial;
+    wings.parent = root;
+
+    const stabilizer = BABYLON.MeshBuilder.CreateBox(
+      "planeStabilizer",
+      { width: 3, height: 0.12, depth: 0.7 },
+      this.scene
+    );
+    stabilizer.position.z = -3.1;
+    stabilizer.material = this.planeBodyMaterial;
+    stabilizer.parent = root;
+
+    const tailFin = BABYLON.MeshBuilder.CreateBox("planeTailFin", { width: 0.12, height: 1.1, depth: 0.9 }, this.scene);
+    tailFin.position.set(0, 0.55, -3.1);
+    tailFin.material = this.planeBodyMaterial;
+    tailFin.parent = root;
+
+    const makeLight = (name: string, x: number, material: BABYLON.StandardMaterial) => {
+      const light = BABYLON.MeshBuilder.CreateSphere(name, { diameter: 0.28 }, this.scene);
+      light.position.set(x, 0, 0);
+      light.material = material;
+      light.isPickable = false;
+      light.parent = root;
+      return light;
+    };
+    makeLight("planeLightRed", -4.5, this.planeRedLightMaterial); // left wingtip, aviation convention
+    makeLight("planeLightGreen", 4.5, this.planeGreenLightMaterial); // right wingtip
+    const tailLight = BABYLON.MeshBuilder.CreateSphere("planeLightWhite", { diameter: 0.22 }, this.scene);
+    tailLight.position.set(0, 0.6, -3.5);
+    tailLight.material = this.planeWhiteLightMaterial;
+    tailLight.isPickable = false;
+    tailLight.parent = root;
+
+    for (const mesh of root.getChildMeshes()) mesh.isPickable = false;
+    return root;
   }
 
   dispose() {
     if (this.cloudScrollObserver) this.scene.onBeforeRenderObservable.remove(this.cloudScrollObserver);
+    if (this.planeUpdateObserver) this.scene.onBeforeRenderObservable.remove(this.planeUpdateObserver);
+    this.planeRoot?.dispose(false, true);
     this.stars?.dispose();
     this.snow?.dispose();
     this.cloudLayer.dispose();
     this.cloudMaterial.dispose();
+    this.planeBodyMaterial.dispose();
+    this.planeRedLightMaterial.dispose();
+    this.planeGreenLightMaterial.dispose();
+    this.planeWhiteLightMaterial.dispose();
   }
 }

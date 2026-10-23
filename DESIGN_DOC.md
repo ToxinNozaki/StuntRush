@@ -10,7 +10,7 @@
 > file is the durable, always-on-disk copy that survives a chat's context
 > filling up.
 >
-> Last synced: 2026-10-23 (doc rev 35)
+> Last synced: 2026-10-23 (doc rev 36)
 >
 > **Game name: "Go-Goated Racing"** — that's the in-game branding (menu logo, page
 > title). The repo name (`StuntRush`), the npm package name (`stuntrush`), and this
@@ -182,7 +182,7 @@ This was the last item on the v1 must-have checklist. Everything is now built: f
 
 ## Backlog — Future Features (post-v1)
 
-- **From Ideas.txt (2026-10-22)**: flying planes in the sky; lightweight traffic AI cars; a car + map select screen before Play, with baked angled-icon car renders (angled light source, CAD-render style); a couple of just-for-fun special cars (a PS1-style car, Lightning McQueen) pulled from the new asset dump. (The switchable in-game camera from this list shipped — see below.)
+- **From Ideas.txt (2026-10-22)**: lightweight traffic AI cars; a car + map select screen before Play, with baked angled-icon car renders (angled light source, CAD-render style); a couple of just-for-fun special cars (a PS1-style car, Lightning McQueen — note: that one's a real Pixar/Disney character, worth swapping for an original design if this ever goes somewhere more public than a school hobby project) pulled from the new asset dump. (The switchable camera and flying planes from this list have shipped — see below.)
 
 ### Shipped post-v1 (2026-10-23)
 
@@ -190,6 +190,7 @@ This was the last item on the v1 must-have checklist. Everything is now built: f
 - **Switchable camera — done**, from Ideas.txt. Press `C` in gameplay to cycle **Chase** (the original camera) → **Cockpit** (first-person, rigidly mounted — tracks the full chassis orientation including pitch/roll, so it rolls and pitches with every flip, by design) → **Cinematic** (a lower, wider, slower-trailing shot) → back to Chase. The current mode shows in the HUD; resets to Chase on every fresh Play. Lives in `Game.cycleCamera()` / `Game.onCameraModeChanged` (`src/game.ts`), wired to the `KeyC` keydown in `main.ts` — intentionally not part of the Settings → Controls rebind list (that only covers the v1 must-have actions).
 - **README.md added** to the repo root: the game, live link, features, controls, tech stack, local dev setup, and a note on asset provenance for anyone who forks it.
 - **Multiplayer text chat — done.** Press Enter during gameplay to open a chat box (multiplayer-only — a no-op if multiplayer's off); Enter sends, Escape cancels. Messages travel over their own reliable/ordered WebRTC data channel (`"chat"`, separate from the unreliable/unordered `"transform"` channel — a dropped chat message matters, a dropped position frame doesn't). Sanitized in `src/chat.ts` on **both** send and receive (length-capped, control characters stripped, a short profanity word-list masked) — labeled with the sender's free-typed nickname (`settings.nickname`, same sanitization, 16-char cap, set from Settings), falling back to "Player" if they haven't set one. Nothing persists: no localStorage, not even sessionStorage — the in-memory chat log is cleared the instant the player leaves the map. **Design call, made explicitly by the user after I raised the alternative:** I pushed back and suggested quick-chat presets (no typing, nothing to moderate) instead of free text, specifically because this is a school-associated project with minors — the user chose free text anyway, so that's what's built. The Risks table's privacy-review row above is updated to reflect this honestly rather than still claiming "nothing to flag."
+- **Flying planes in the sky — done**, from Ideas.txt. Purely atmospheric: one distant plane in flight at a time, respawning on a random delay (~15-45s between flights), flying a dead-straight line high above the cloud layer (`EnvironmentController`, `src/environment.ts`) over ~40-60 seconds — slow and high enough to read as "distant," not "buzzing the track." No collision, no gameplay effect. My own addition on top of the backlog idea: small red/green wingtip nav lights and a white tail light (all fully emissive, so they're visible day or night) — the plane itself is just a few low-poly primitives (cylinder fuselage, box wings/tail), cheap enough that geometry is built fresh per flight and disposed after rather than pooled. Ties into the existing apply()/reset() gameplay lifecycle, same as clouds/stars/snow.
 
 ## Key implementation facts worth knowing (not in the original doc, learned during the build)
 
