@@ -56,6 +56,7 @@ export class VehicleController {
   /** Set independently by the paint color slider — a performance pick never locks in a color. */
   private bodyColorHex: string | null = null;
   private plateText: string | null = null;
+  private modelUrl: string | undefined = undefined;
 
   private groundedWheelCount = 0;
   private spawnPosition: BABYLON.Vector3;
@@ -124,17 +125,20 @@ export class VehicleController {
       4.3,
       0.32,
       this.bodyColorHex ?? undefined,
-      this.plateText ?? undefined
+      this.plateText ?? undefined,
+      this.modelUrl
     );
     this.visualRoot = visual.root;
     this.carVisual = visual;
     for (const light of visual.headlightLights) light.setEnabled(this.headlightsOn);
   }
 
-  /** Call before attachVisual() so the performance stats are active from the first frame. */
+  /** Call before attachVisual() so the performance stats (and the model, if this
+   *  car overrides it) are active from the first frame. */
   setCarSpec(spec: CarSpec) {
     this.enginePowerMultiplier = spec.enginePowerMultiplier;
     this.carGripMultiplier = spec.gripMultiplier;
+    this.modelUrl = spec.modelUrl;
   }
 
   /** Call before attachVisual() so the paint color is baked into the import. */

@@ -1,14 +1,14 @@
 import * as BABYLON from "@babylonjs/core";
 import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
 import "@babylonjs/loaders/glTF";
-import { applyBodyColor, applyPlateText } from "./carModel";
-
-const MODEL_URL = `${import.meta.env.BASE_URL}models/nissan-300zx.glb`;
+import { applyBodyColor, applyPlateText, DEFAULT_MODEL_URL } from "./carModel";
 
 /**
  * The backdrop behind the main menu: the car on a slow turntable in a dark,
  * snowing scene. Built once on first show(), then just enabled/disabled —
- * cheap to bring back each time the player returns to the menu.
+ * cheap to bring back each time the player returns to the menu. The model
+ * itself can be swapped live (setCarModel) when the player picks a car that
+ * uses a different one (see cars.ts's `modelUrl` field).
  */
 export class MenuScene {
   private root: BABYLON.TransformNode | null = null;
@@ -16,8 +16,12 @@ export class MenuScene {
   private rotationObserver: BABYLON.Observer<BABYLON.Scene> | null = null;
   private buildPromise: Promise<void> | null = null;
   private previewMeshes: BABYLON.AbstractMesh[] = [];
-  private pendingColorHex: string | null = null;
-  private pendingPlateText: string | null = null;
+  private lastColorHex: string | null = null;
+  private lastPlateText: string | null = null;
+  /** The model URL currently loaded (or in flight) — guards against a stale,
+   *  slower-to-resolve load clobbering a newer one if the player clicks
+   *  through car choices faster than models can load. */
+  private currentModelUrl: string | null = null;
 
   private readonly scene: BABYLON.Scene;
   private readonly camera: BABYLON.UniversalCamera;
@@ -66,19 +70,25 @@ export class MenuScene {
 
   /** Updates the turntable car's paint; safe to call before the model has loaded. */
   setBodyColor(hexColor: string) {
-    if (this.previewMeshes.length > 0) {
-      applyBodyColor(this.previewMeshes, hexColor);
-    } else {
-      this.pendingColorHex = hexColor;
-    }
+    this.lastColorHex = hexColor;
+    if (this.previewMeshes.length > 0) applyBodyColor(this.previewMeshes, hexColor);
   }
 
   /** Updates the turntable car's plate; safe to call before the model has loaded. */
   setPlateText(text: string) {
-    if (this.previewMeshes.length > 0) {
-      applyPlateText(this.scene, this.previewMeshes, text);
+    this.lastPlateText = text;
+    if (this.previewMeshes.length > 0) applyPlateText(this.scene, this.previewMeshes, text);
+  }
+
+  /** Swaps the turntable car to a different model (e.g. the player picked a car with
+   *  its own `modelUrl` in cars.ts). A no-op if it's already showing this model. */
+  setCarModel(modelUrl: string) {
+    if (modelUrl === this.currentModelUrl) return;
+    if (this.buildPromise) {
+      void this.buildPromise.then(() => this.loadModel(modelUrl));
     } else {
-      this.pendingPlateText = text;
+      // show() hasn't built anything yet — build() will load this URL itself.
+      this.currentModelUrl = modelUrl;
     }
   }
 
@@ -96,20 +106,38 @@ export class MenuScene {
   }
 
   private async build(): Promise<void> {
-    const result = await ImportMeshAsync(MODEL_URL, this.scene);
+    await this.loadModel(this.currentModelUrl ?? DEFAULT_MODEL_URL);
+
+    // Reads this.root fresh every frame (rather than closing over a local variable)
+    // so a later setCarModel() swap keeps rotating whatever's current.
+    this.rotationObserver = this.scene.onBeforeRenderObservable.add(() => {
+      // Slow, deliberate turntable — not a spin. Gives the eye time to read the car.
+      if (this.root) this.root.rotation.y += this.scene.getEngine().getDeltaTime() * 0.00012;
+    });
+
+    this.snow = this.buildSnow();
+  }
+
+  /** Loads a model as the turntable preview, replacing whatever was there before. */
+  private async loadModel(modelUrl: string): Promise<void> {
+    this.currentModelUrl = modelUrl;
+    const result = await ImportMeshAsync(modelUrl, this.scene);
+
+    // The player picked a different car again while this one was still loading —
+    // this load lost the race, so just discard it instead of flashing it on screen.
+    if (this.currentModelUrl !== modelUrl) {
+      for (const mesh of result.meshes) mesh.dispose();
+      return;
+    }
+
+    const oldRoot = this.root;
     const root = new BABYLON.TransformNode("menuCarRoot", this.scene);
     for (const mesh of result.meshes) {
       if (mesh.parent === null) mesh.parent = root;
     }
     this.previewMeshes = result.meshes;
-    if (this.pendingColorHex) {
-      applyBodyColor(this.previewMeshes, this.pendingColorHex);
-      this.pendingColorHex = null;
-    }
-    if (this.pendingPlateText) {
-      applyPlateText(this.scene, this.previewMeshes, this.pendingPlateText);
-      this.pendingPlateText = null;
-    }
+    if (this.lastColorHex) applyBodyColor(this.previewMeshes, this.lastColorHex);
+    if (this.lastPlateText) applyPlateText(this.scene, this.previewMeshes, this.lastPlateText);
 
     const bounds = root.getHierarchyBoundingVectors(true);
     const size = bounds.max.subtract(bounds.min);
@@ -121,12 +149,7 @@ export class MenuScene {
     root.position = new BABYLON.Vector3(-center.x, -scaledBounds.min.y, -center.z);
 
     this.root = root;
-    this.rotationObserver = this.scene.onBeforeRenderObservable.add(() => {
-      // Slow, deliberate turntable — not a spin. Gives the eye time to read the car.
-      root.rotation.y += this.scene.getEngine().getDeltaTime() * 0.00012;
-    });
-
-    this.snow = this.buildSnow();
+    oldRoot?.dispose(false, true);
   }
 
   private buildSnow(): BABYLON.ParticleSystem {

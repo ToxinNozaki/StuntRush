@@ -2,12 +2,18 @@ import * as BABYLON from "@babylonjs/core";
 import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
 import "@babylonjs/loaders/glTF";
 
-const MODEL_URL = `${import.meta.env.BASE_URL}models/nissan-300zx.glb`;
+export const DEFAULT_MODEL_URL = `${import.meta.env.BASE_URL}models/nissan-300zx.glb`;
 /** The body shell's paint material in the source glTF — confirmed by raycasting the
  *  live rendered scene (scene.pick) against the actual hood/door/fender pixels and
  *  reading back the hit mesh's material name. Guessing this from the raw glTF JSON's
  *  baseColor values or by eye (Material.004 turned out to be the wheels, not the body)
- *  isn't reliable for this file — the materials carry no semantic names. */
+ *  isn't reliable for this file — the materials carry no semantic names.
+ *
+ *  The low-poly "novelty" car (src/cars.ts's `lowpoly` entry) happens to use this same
+ *  literal name for its own body shell too — confirmed independently the same way
+ *  (emissive-highlight + screenshot), NOT assumed from the name matching. If a future
+ *  car uses a different name for its body material, it needs its own constant and a
+ *  per-model lookup here — don't assume every model's body paint is "Material.001". */
 const BODY_PAINT_MATERIAL_NAME = "Material.001";
 
 /** Finds the body paint material among a freshly-imported car's meshes, if present. */
@@ -103,9 +109,10 @@ export async function attachCarVisual(
   targetLength: number,
   groundClearance: number,
   bodyColorHex?: string,
-  plateText?: string
+  plateText?: string,
+  modelUrl: string = DEFAULT_MODEL_URL
 ): Promise<CarVisual> {
-  const result = await ImportMeshAsync(MODEL_URL, scene);
+  const result = await ImportMeshAsync(modelUrl, scene);
   const root = new BABYLON.TransformNode("carVisualRoot", scene);
 
   for (const mesh of result.meshes) {
