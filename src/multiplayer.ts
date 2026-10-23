@@ -3,7 +3,20 @@ export interface RemoteTransform {
   q: [number, number, number, number];
   speedKph: number;
   airborne: boolean;
+  /** Piggybacked on the transform broadcast rather than sent once, so a late joiner
+   *  gets it on the very first packet instead of needing a separate handshake step. */
+  nickname: string;
 }
+
+/** Messages a peer could, in principle, send on the chat channel: just free text
+ *  right now, kept as a tagged type so a future kind (e.g. "typing...") doesn't
+ *  need a wire-format change. */
+interface ChatPayload {
+  kind: "chat";
+  text: string;
+}
+
+const MAX_INCOMING_CHAT_LENGTH = 200; // defensive cap; UI-side sanitizeChatText trims further
 
 type SignalMessage =
   | { type: "welcome"; id: string; peers: string[] }
@@ -28,12 +41,16 @@ export class MultiplayerClient {
   private selfId: string | null = null;
   private readonly connections = new Map<string, RTCPeerConnection>();
   private readonly channels = new Map<string, RTCDataChannel>();
+  private readonly chatChannels = new Map<string, RTCDataChannel>();
   private lastSentAt = 0;
 
   onPeerJoined: ((id: string) => void) | null = null;
   onPeerLeft: ((id: string) => void) | null = null;
   onPeerTransform: ((id: string, transform: RemoteTransform) => void) | null = null;
   onRoomFull: (() => void) | null = null;
+  /** Raw text as the peer sent it — the caller is responsible for sanitizing before
+   *  display, since a modified client could bypass that peer's own sanitization. */
+  onChatMessage: ((id: string, text: string) => void) | null = null;
 
   get connectedPeerIds(): string[] {
     return [...this.channels.keys()];
@@ -105,8 +122,13 @@ export class MultiplayerClient {
 
   private async createOfferTo(peerId: string) {
     const pc = this.getOrCreateConnection(peerId);
-    const channel = pc.createDataChannel("transform", { ordered: false, maxRetransmits: 0 });
-    this.wireChannel(peerId, channel);
+    const transformChannel = pc.createDataChannel("transform", { ordered: false, maxRetransmits: 0 });
+    this.wireChannel(peerId, transformChannel);
+    // Chat needs to actually arrive, unlike a transform frame that's stale a moment
+    // later anyway — ordered + reliable (WebRTC's default), its own channel so a
+    // reliable retransmit never blocks behind the throwaway transform traffic.
+    const chatChannel = pc.createDataChannel("chat");
+    this.wireChannel(peerId, chatChannel);
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
@@ -132,6 +154,23 @@ export class MultiplayerClient {
   }
 
   private wireChannel(peerId: string, channel: RTCDataChannel) {
+    if (channel.label === "chat") {
+      this.chatChannels.set(peerId, channel);
+      channel.onmessage = (event) => {
+        if (typeof event.data !== "string" || event.data.length > MAX_INCOMING_CHAT_LENGTH) return;
+        try {
+          const payload = JSON.parse(event.data) as ChatPayload;
+          if (payload.kind === "chat" && typeof payload.text === "string") {
+            this.onChatMessage?.(peerId, payload.text);
+          }
+        } catch {
+          // malformed packet from a peer — drop it, not worth a crash over
+        }
+      };
+      channel.onclose = () => this.chatChannels.delete(peerId);
+      return;
+    }
+
     this.channels.set(peerId, channel);
     channel.onopen = () => this.onPeerJoined?.(peerId);
     channel.onmessage = (event) => {
@@ -149,6 +188,16 @@ export class MultiplayerClient {
     this.connections.get(peerId)?.close();
     this.connections.delete(peerId);
     this.channels.delete(peerId);
+    this.chatChannels.delete(peerId);
+  }
+
+  /** Broadcasts a chat message to every connected peer's reliable chat channel. */
+  sendChat(text: string) {
+    const payload: ChatPayload = { kind: "chat", text };
+    const json = JSON.stringify(payload);
+    for (const channel of this.chatChannels.values()) {
+      if (channel.readyState === "open") channel.send(json);
+    }
   }
 
   private send(msg: object) {

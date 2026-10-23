@@ -43,9 +43,13 @@ export interface Settings {
   keyBindings: KeyBindings;
   /** Rear plate text, free-typed, sanitized/capped in carModel.ts before it's drawn. */
   plateText: string;
+  /** Free-typed display name shown to other players in multiplayer (chat + presence).
+   *  Sanitized/capped in chat.ts before it's ever broadcast or displayed. */
+  nickname: string;
 }
 
 export const DEFAULT_PLATE_TEXT = "STUNT";
+export const DEFAULT_NICKNAME = "";
 
 const STORAGE_KEY = "stuntrush_settings_v1";
 
@@ -60,6 +64,7 @@ const DEFAULTS: Settings = {
   bodyColorHue: DEFAULT_BODY_HUE,
   keyBindings: DEFAULT_KEY_BINDINGS,
   plateText: DEFAULT_PLATE_TEXT,
+  nickname: DEFAULT_NICKNAME,
 };
 
 export function loadSettings(): Settings {

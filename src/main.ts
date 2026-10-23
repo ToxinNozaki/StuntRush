@@ -19,6 +19,7 @@ import { DevOverlay } from "./debug/devOverlay";
 import { MenuScene } from "./menuScene";
 import { EnvironmentController } from "./environment";
 import { hueToHex } from "./cars";
+import { MAX_CHAT_LENGTH } from "./chat";
 
 async function main() {
   const loadingScreen = document.getElementById("loadingScreen")!;
@@ -101,12 +102,71 @@ async function main() {
     });
   const fadeFromBlack = () => sceneFade.classList.remove("active");
 
+  // --- Multiplayer chat: free-typed, sanitized on both send and receive. No
+  // persistence by design (not even sessionStorage) — it's in-memory only and
+  // cleared the moment the map is left. ---
+  const chatLog = document.getElementById("chatLog")!;
+  const chatInputRow = document.getElementById("chatInputRow")!;
+  const chatInput = document.getElementById("chatInput") as HTMLInputElement;
+  chatInput.maxLength = MAX_CHAT_LENGTH;
+
+  const appendChatMessage = (label: string, text: string) => {
+    chatLog.classList.remove("hidden");
+    const line = document.createElement("div");
+    line.className = "chatMsg";
+    const nameEl = document.createElement("span");
+    nameEl.className = "chatName";
+    nameEl.textContent = `${label}:`;
+    line.appendChild(nameEl);
+    line.appendChild(document.createTextNode(text));
+    chatLog.appendChild(line);
+    while (chatLog.children.length > 6) chatLog.removeChild(chatLog.firstElementChild!);
+    setTimeout(() => {
+      line.style.opacity = "0";
+      setTimeout(() => line.remove(), 1000);
+    }, 7000);
+  };
+  game.onChatMessage = (label, text) => appendChatMessage(label, text);
+
+  const closeChat = () => {
+    chatInputRow.classList.add("hidden");
+    chatInput.value = "";
+    chatInput.blur();
+  };
+  const openChat = () => {
+    if (!game.isLoaded || !settings.multiplayerEnabled) return;
+    chatInputRow.classList.remove("hidden");
+    chatInput.focus();
+  };
+  const clearChat = () => {
+    closeChat();
+    chatLog.replaceChildren();
+    chatLog.classList.add("hidden");
+  };
+  // Every keystroke while composing a chat message is stopped here, before it ever
+  // reaches the window-level listener InputManager/camera-cycle/menu-escape rely on
+  // — otherwise typing "w" or "c" would also drive the car or cycle the camera.
+  chatInput.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.code === "Escape") {
+      closeChat();
+    } else if (e.code === "Enter") {
+      const raw = chatInput.value.trim();
+      if (raw.length > 0) {
+        const sent = game.sendChat(raw);
+        if (sent) appendChatMessage("You", sent);
+      }
+      closeChat();
+    }
+  });
+
   const returnToMenu = async () => {
     await fadeToBlack();
     game.dispose();
     environment.reset();
     hud.classList.add("hidden");
     backButton.classList.add("hidden");
+    clearChat();
     void menuScene.show();
     menu.show();
     fadeFromBlack();
@@ -138,7 +198,8 @@ async function main() {
       settings.multiplayerEnabled ? SIGNALING_URL : null,
       carId,
       hueToHex(settings.bodyColorHue),
-      settings.plateText
+      settings.plateText,
+      settings.nickname
     );
     hud.classList.remove("hidden");
     backButton.classList.remove("hidden");
@@ -172,6 +233,14 @@ async function main() {
     menuScene.setPlateText(settings.plateText);
   });
 
+  // --- Multiplayer nickname: free-typed, sanitized/capped before it's ever sent. ---
+  const nicknameInput = document.getElementById("nicknameInput") as HTMLInputElement;
+  nicknameInput.value = settings.nickname;
+  nicknameInput.addEventListener("input", () => {
+    settings.nickname = nicknameInput.value;
+    saveSettings(settings);
+  });
+
   setLoadingProgress(55);
   await menuScene.show();
   menu.show();
@@ -185,6 +254,7 @@ async function main() {
   window.addEventListener("keydown", (e) => {
     if (e.code === "Escape" && game.isLoaded) returnToMenu();
     if (e.code === "KeyC" && game.isLoaded) game.cycleCamera();
+    if (e.code === "Enter" && game.isLoaded) openChat();
   });
 
   const CAMERA_MODE_LABELS: Record<string, string> = {
@@ -282,7 +352,7 @@ async function main() {
     controlsHint.textContent =
       `${describeKeyCode(b.forward)}${describeKeyCode(b.back)}${describeKeyCode(b.left)}${describeKeyCode(b.right)}` +
       `/Arrows drive · ${describeKeyCode(b.airControl)} air control + Arrows/Mouse to flip · ` +
-      `${describeKeyCode(b.reset)} reset · ${describeKeyCode(b.headlights)} headlights · C camera`;
+      `${describeKeyCode(b.reset)} reset · ${describeKeyCode(b.headlights)} headlights · C camera · Enter chat`;
   };
   refreshControlsHint();
 

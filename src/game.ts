@@ -5,9 +5,11 @@ import { buildWorld, type BuiltWorld } from "./world";
 import { MultiplayerClient } from "./multiplayer";
 import { RemoteCar } from "./remoteCar";
 import { getCarSpec } from "./cars";
+import { sanitizeChatText, sanitizeNickname } from "./chat";
 
 export type CameraMode = "chase" | "cockpit" | "cinematic";
 const CAMERA_MODE_ORDER: CameraMode[] = ["chase", "cockpit", "cinematic"];
+const DEFAULT_NICKNAME_FALLBACK = "Player";
 
 /**
  * Owns everything that exists only while a map is being played: the world
@@ -25,6 +27,8 @@ export class Game {
 
   private multiplayer: MultiplayerClient | null = null;
   private readonly remoteCars = new Map<string, RemoteCar>();
+  private readonly peerNicknames = new Map<string, string>();
+  private localNickname = DEFAULT_NICKNAME_FALLBACK;
 
   /** Fired once the car's visual model (and thus its real meshes) is ready to shadow-cast. */
   onCarVisualReady: ((meshes: BABYLON.AbstractMesh[]) => void) | null = null;
@@ -32,6 +36,9 @@ export class Game {
   onPeerCountChanged: ((count: number) => void) | null = null;
   /** Fired whenever the camera mode changes (cycleCamera or a fresh load), for a HUD readout. */
   onCameraModeChanged: ((mode: CameraMode) => void) | null = null;
+  /** Fired on every incoming chat message, already sanitized and labeled with the
+   *  sender's current nickname (or the "Player" fallback if they haven't sent one). */
+  onChatMessage: ((label: string, text: string) => void) | null = null;
 
   private cameraMode: CameraMode = "chase";
 
@@ -70,11 +77,14 @@ export class Game {
     signalingUrl: string | null = null,
     carId?: string,
     bodyColorHex?: string,
-    plateText?: string
+    plateText?: string,
+    nickname?: string
   ): Promise<void> {
     if (this.isLoaded) this.dispose();
 
     this.cameraMode = "chase";
+    this.localNickname = sanitizeNickname(nickname ?? "") || DEFAULT_NICKNAME_FALLBACK;
+    this.peerNicknames.clear();
     this.world = buildWorld(this.scene);
 
     const spawn = new BABYLON.Vector3(0, 2, 0);
@@ -158,6 +168,7 @@ export class Game {
           q: [rotation.x, rotation.y, rotation.z, rotation.w],
           speedKph: vehicle.speedKph,
           airborne: vehicle.isAirborne,
+          nickname: this.localNickname,
         });
       }
     });
@@ -187,14 +198,29 @@ export class Game {
         this.onPeerCountChanged?.(this.remoteCars.size);
       }
       remote.applyTransform(transform);
+      if (transform.nickname) this.peerNicknames.set(id, sanitizeNickname(transform.nickname));
     };
     client.onPeerLeft = (id) => {
       this.remoteCars.get(id)?.dispose();
       this.remoteCars.delete(id);
+      this.peerNicknames.delete(id);
       this.onPeerCountChanged?.(this.remoteCars.size);
+    };
+    client.onChatMessage = (id, rawText) => {
+      const label = this.peerNicknames.get(id) || DEFAULT_NICKNAME_FALLBACK;
+      const safeText = sanitizeChatText(rawText);
+      if (safeText) this.onChatMessage?.(label, safeText);
     };
 
     client.connect(signalingUrl);
+  }
+
+  /** Sanitizes, broadcasts to every connected peer, and returns the sanitized text
+   *  so the caller can echo exactly what was actually sent (masking included). */
+  sendChat(text: string): string {
+    const safeText = sanitizeChatText(text);
+    if (safeText) this.multiplayer?.sendChat(safeText);
+    return safeText;
   }
 
   /** Unloads the current map: disposes world geometry, vehicle, camera, and observers. */
@@ -209,6 +235,7 @@ export class Game {
     this.multiplayer = null;
     for (const remote of this.remoteCars.values()) remote.dispose();
     this.remoteCars.clear();
+    this.peerNicknames.clear();
     this.camera?.dispose();
     this.camera = null;
     this.scene.activeCamera = this.fallbackCamera;
