@@ -18,7 +18,8 @@ import "./debug/errorLogger"; // installed for its side effects: catches errors 
 import { DevOverlay } from "./debug/devOverlay";
 import { MenuScene } from "./menuScene";
 import { EnvironmentController } from "./environment";
-import { hueToHex } from "./cars";
+import { hueToHex, getCarSpec } from "./cars";
+import { DEFAULT_MODEL_URL } from "./carModel";
 import { MAX_CHAT_LENGTH } from "./chat";
 
 async function main() {
@@ -47,14 +48,45 @@ async function main() {
 
   scene.clearColor = new BABYLON.Color4(0.55, 0.65, 0.75, 1);
 
+  // Image-based lighting: gives every PBR car material (clearcoat paint
+  // especially) something real to reflect instead of flat, lightless panels.
+  // Babylon's official default studio environment — no custom HDRI asset to
+  // source/host ourselves, at the cost of one external fetch from Babylon's own
+  // CDN (assets.babylonjs.com). If that's ever blocked on a restrictive network,
+  // PBR materials just fall back to looking flat again — not a hard failure.
+  scene.environmentTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
+    "https://assets.babylonjs.com/environments/environmentSpecular.env",
+    scene
+  );
+  scene.environmentIntensity = 0.7;
+
+  // Scene-wide tone mapping/grading — this is what makes the render feel
+  // "finished" rather than default-engine-flat (the design doc's bloom/color
+  // grading/vignette ask). Lives on ImageProcessingConfiguration rather than a
+  // DefaultRenderingPipeline specifically so it keeps working no matter which
+  // camera is active (chase/cockpit/cinematic/menu) without needing every new
+  // camera re-attached to a pipeline.
+  const imageProcessing = scene.imageProcessingConfiguration;
+  imageProcessing.contrast = 1.12;
+  imageProcessing.exposure = 1.05;
+  imageProcessing.vignetteEnabled = true;
+  imageProcessing.vignetteWeight = 1.4;
+  imageProcessing.vignetteStretch = 0.15;
+  imageProcessing.vignetteColor = new BABYLON.Color4(0, 0, 0, 1);
+
+  // Hemi carries the ambient fill; nudged down slightly from before since the
+  // environment texture above now contributes real ambient of its own — without
+  // this the two would stack and wash out daytime highlights.
   const hemi = new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, 1, 0), scene);
-  hemi.intensity = 0.6;
+  hemi.intensity = 0.45;
   const sun = new BABYLON.DirectionalLight("sun", new BABYLON.Vector3(-0.5, -1, 0.3), scene);
   sun.intensity = 0.9;
   sun.position = new BABYLON.Vector3(0, 60, -20);
 
   const shadowGenerator = new BABYLON.ShadowGenerator(1024, sun);
   shadowGenerator.useBlurExponentialShadowMap = true;
+  shadowGenerator.bias = 0.0015;
+  shadowGenerator.normalBias = 0.02;
   let shadowCasters: BABYLON.AbstractMesh[] = [];
 
   // The render loop starts immediately, before any map is loaded, so Babylon always
@@ -72,6 +104,7 @@ async function main() {
   const settings = loadSettings();
   input.setBindings(settings.keyBindings);
   menuScene.setBodyColor(hueToHex(settings.bodyColorHue));
+  menuScene.setCarModel(getCarSpec(settings.carId).modelUrl ?? DEFAULT_MODEL_URL);
   let audio: EngineAudio | null = null;
 
   const applyPreset = (preset: GraphicsPreset) => {
@@ -209,6 +242,7 @@ async function main() {
   menu.onCarChanged = (carId) => {
     settings.carId = carId;
     saveSettings(settings);
+    menuScene.setCarModel(getCarSpec(carId).modelUrl ?? DEFAULT_MODEL_URL);
   };
 
   // --- Paint color slider: a single hue drives both the preview and the live car. ---
