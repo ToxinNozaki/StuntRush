@@ -10,7 +10,15 @@
 > file is the durable, always-on-disk copy that survives a chat's context
 > filling up.
 >
-> Last synced: 2026-10-23 (doc rev 30)
+> Last synced: 2026-10-23 (doc rev 31)
+>
+> **Game name: "Go-Goated Racing"** — that's the in-game branding (menu logo, page
+> title). The repo name (`StuntRush`), the npm package name (`stuntrush`), and this
+> doc's own title below are the project's internal/working name and haven't been
+> renamed to match; don't assume they're out of sync by mistake if you see both names
+> side by side. Renaming the repo would change the live GitHub Pages URL
+> (`https://toxinnozaki.github.io/StuntRush/`), so that's a call for the user to make
+> explicitly, not something to do as a side effect of a branding pass.
 
 ---
 
