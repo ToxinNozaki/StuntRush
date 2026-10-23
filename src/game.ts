@@ -6,6 +6,9 @@ import { MultiplayerClient } from "./multiplayer";
 import { RemoteCar } from "./remoteCar";
 import { getCarSpec } from "./cars";
 
+export type CameraMode = "chase" | "cockpit" | "cinematic";
+const CAMERA_MODE_ORDER: CameraMode[] = ["chase", "cockpit", "cinematic"];
+
 /**
  * Owns everything that exists only while a map is being played: the world
  * geometry, the vehicle, the chase camera, and the HUD updates. load()/dispose()
@@ -27,6 +30,10 @@ export class Game {
   onCarVisualReady: ((meshes: BABYLON.AbstractMesh[]) => void) | null = null;
   /** Fired on any multiplayer connection-count change, for a HUD readout. */
   onPeerCountChanged: ((count: number) => void) | null = null;
+  /** Fired whenever the camera mode changes (cycleCamera or a fresh load), for a HUD readout. */
+  onCameraModeChanged: ((mode: CameraMode) => void) | null = null;
+
+  private cameraMode: CameraMode = "chase";
 
   private readonly fallbackCamera: BABYLON.Camera;
 
@@ -67,6 +74,7 @@ export class Game {
   ): Promise<void> {
     if (this.isLoaded) this.dispose();
 
+    this.cameraMode = "chase";
     this.world = buildWorld(this.scene);
 
     const spawn = new BABYLON.Vector3(0, 2, 0);
@@ -81,40 +89,59 @@ export class Game {
     if (signalingUrl) this.startMultiplayer(signalingUrl);
 
     const camera = new BABYLON.UniversalCamera("chaseCam", new BABYLON.Vector3(0, 4, -8), this.scene);
-    camera.minZ = 0.1;
+    camera.minZ = 0.05;
     camera.upVector = BABYLON.Vector3.Up();
     this.scene.activeCamera = camera;
     this.camera = camera;
+    this.onCameraModeChanged?.(this.cameraMode);
 
-    const baseFov = 0.8;
-    const chaseHeight = 2.4;
-    const chaseDistance = 9;
+    // Per-mode framing. "chase" tracks heading only (never pitch/roll — rigidly
+    // following the full chassis orientation would spin the whole screen on every
+    // air-control flip). "cinematic" is the same idea, wider and slower, for a
+    // dramatic trailing shot. "cockpit" is handled separately below: it tracks the
+    // chassis's full orientation directly, since that's the point of a cockpit view.
+    const framing: Record<"chase" | "cinematic", { fov: number; height: number; distance: number; lerp: number }> = {
+      chase: { fov: 0.8, height: 2.4, distance: 9, lerp: 0.08 },
+      cinematic: { fov: 0.95, height: 1.2, distance: 14, lerp: 0.035 },
+    };
     let smoothedCamPos = camera.position.clone();
 
     const speedEl = document.getElementById("speed");
 
     this.renderObserver = this.scene.onBeforeRenderObservable.add(() => {
-      // Chase camera tracks the car's heading (yaw) only — never its pitch/roll.
-      // Rigidly following the full chassis orientation would spin the whole screen
-      // with every air-control flip, which is unplayable, not cinematic.
       const carPos = vehicle.chassis.getAbsolutePosition();
-      const rawForward = BABYLON.Vector3.TransformNormal(
-        BABYLON.Vector3.Forward(),
-        vehicle.chassis.getWorldMatrix()
-      );
-      const flatForward = new BABYLON.Vector3(rawForward.x, 0, rawForward.z);
-      if (flatForward.lengthSquared() < 1e-6) flatForward.copyFrom(BABYLON.Vector3.Forward());
-      flatForward.normalize();
 
-      const desiredPos = carPos
-        .subtract(flatForward.scale(chaseDistance))
-        .add(new BABYLON.Vector3(0, chaseHeight, 0));
-      smoothedCamPos = BABYLON.Vector3.Lerp(smoothedCamPos, desiredPos, 0.08);
-      camera.position.copyFrom(smoothedCamPos);
-      camera.setTarget(carPos.add(new BABYLON.Vector3(0, 0.8, 0)));
+      if (this.cameraMode === "cockpit") {
+        // Full chassis rotation on purpose — a cockpit view is supposed to roll and
+        // pitch with the car, flips included. No smoothing: it's rigidly mounted.
+        const worldMatrix = vehicle.chassis.getWorldMatrix();
+        const eyeLocal = new BABYLON.Vector3(-0.35, 0.45, -0.25);
+        camera.position = BABYLON.Vector3.TransformCoordinates(eyeLocal, worldMatrix);
+        camera.rotationQuaternion = (
+          vehicle.chassis.rotationQuaternion ?? BABYLON.Quaternion.Identity()
+        ).clone();
+        camera.fov = 0.9;
+      } else {
+        const { fov, height, distance, lerp } = framing[this.cameraMode];
+        const rawForward = BABYLON.Vector3.TransformNormal(
+          BABYLON.Vector3.Forward(),
+          vehicle.chassis.getWorldMatrix()
+        );
+        const flatForward = new BABYLON.Vector3(rawForward.x, 0, rawForward.z);
+        if (flatForward.lengthSquared() < 1e-6) flatForward.copyFrom(BABYLON.Vector3.Forward());
+        flatForward.normalize();
 
-      const speedFrac = BABYLON.Scalar.Clamp(vehicle.speedKph / 160, 0, 1);
-      camera.fov = baseFov + speedFrac * 0.25;
+        const desiredPos = carPos
+          .subtract(flatForward.scale(distance))
+          .add(new BABYLON.Vector3(0, height, 0));
+        smoothedCamPos = BABYLON.Vector3.Lerp(smoothedCamPos, desiredPos, lerp);
+        camera.position.copyFrom(smoothedCamPos);
+        camera.rotationQuaternion = null;
+        camera.setTarget(carPos.add(new BABYLON.Vector3(0, 0.8, 0)));
+
+        const speedFrac = BABYLON.Scalar.Clamp(vehicle.speedKph / 160, 0, 1);
+        camera.fov = fov + speedFrac * 0.25;
+      }
 
       if (speedEl) {
         speedEl.textContent = `${Math.round(vehicle.speedKph * 0.621)} mph${
@@ -134,6 +161,18 @@ export class Game {
         });
       }
     });
+  }
+
+  get cameraModeValue(): CameraMode {
+    return this.cameraMode;
+  }
+
+  /** Cycles chase → cockpit → cinematic → chase. No-op until a map is loaded. */
+  cycleCamera() {
+    if (!this.isLoaded) return;
+    const next = CAMERA_MODE_ORDER[(CAMERA_MODE_ORDER.indexOf(this.cameraMode) + 1) % CAMERA_MODE_ORDER.length];
+    this.cameraMode = next;
+    this.onCameraModeChanged?.(next);
   }
 
   private startMultiplayer(signalingUrl: string) {

@@ -184,7 +184,18 @@ async function main() {
   backButton.addEventListener("click", returnToMenu);
   window.addEventListener("keydown", (e) => {
     if (e.code === "Escape" && game.isLoaded) returnToMenu();
+    if (e.code === "KeyC" && game.isLoaded) game.cycleCamera();
   });
+
+  const CAMERA_MODE_LABELS: Record<string, string> = {
+    chase: "Chase",
+    cockpit: "Cockpit",
+    cinematic: "Cinematic",
+  };
+  const cameraModeEl = document.getElementById("cameraMode")!;
+  game.onCameraModeChanged = (mode) => {
+    cameraModeEl.textContent = CAMERA_MODE_LABELS[mode] ?? mode;
+  };
 
   // --- Settings panel ---
   const settingsPanel = document.getElementById("settings")!;
@@ -271,7 +282,7 @@ async function main() {
     controlsHint.textContent =
       `${describeKeyCode(b.forward)}${describeKeyCode(b.back)}${describeKeyCode(b.left)}${describeKeyCode(b.right)}` +
       `/Arrows drive · ${describeKeyCode(b.airControl)} air control + Arrows/Mouse to flip · ` +
-      `${describeKeyCode(b.reset)} reset · ${describeKeyCode(b.headlights)} headlights`;
+      `${describeKeyCode(b.reset)} reset · ${describeKeyCode(b.headlights)} headlights · C camera`;
   };
   refreshControlsHint();
 

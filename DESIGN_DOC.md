@@ -10,7 +10,7 @@
 > file is the durable, always-on-disk copy that survives a chat's context
 > filling up.
 >
-> Last synced: 2026-10-23 (doc rev 31)
+> Last synced: 2026-10-23 (doc rev 32)
 >
 > **Game name: "Go-Goated Racing"** — that's the in-game branding (menu logo, page
 > title). The repo name (`StuntRush`), the npm package name (`stuntrush`), and this
@@ -182,11 +182,13 @@ This was the last item on the v1 must-have checklist. Everything is now built: f
 ## Backlog — Future Features (post-v1)
 
 - **Multiplayer text chat** (multiplayer-only — not planned for single-player). Note: the Risks table's privacy mitigation row currently reads "No chat text input... nothing for an IT or privacy review to flag" — adding chat reopens that specific mitigation and needs its own pass (no persistence, basic filtering) before it ships, not just a feature flag.
-- **From Ideas.txt (2026-10-22)**: flying planes in the sky; lightweight traffic AI cars; a car + map select screen before Play, with baked angled-icon car renders (angled light source, CAD-render style); a switchable in-game camera — 3rd person / first-person in-car / cinematic — on a dedicated key; a couple of just-for-fun special cars (a PS1-style car, Lightning McQueen) pulled from the new asset dump.
+- **From Ideas.txt (2026-10-22)**: flying planes in the sky; lightweight traffic AI cars; a car + map select screen before Play, with baked angled-icon car renders (angled light source, CAD-render style); a couple of just-for-fun special cars (a PS1-style car, Lightning McQueen) pulled from the new asset dump. (The switchable in-game camera from this list shipped — see below.)
 
 ### Shipped post-v1 (2026-10-23)
 
 - **License plate text customization — done.** A "Plate" text field on the menu (up to 8 characters, sanitized/capped in `applyPlateText()` in `src/carModel.ts`) drives a freshly-drawn `DynamicTexture` swapped onto the plate material, live on the menu preview car and carried into gameplay. Turns out the model's front and rear plates share one material instance, so the one texture swap covers both — found by giving the material a bright emissive color and screenshotting the rendered car (same verification method as the body-paint material), not by trusting the glTF material name alone.
+- **Switchable camera — done**, from Ideas.txt. Press `C` in gameplay to cycle **Chase** (the original camera) → **Cockpit** (first-person, rigidly mounted — tracks the full chassis orientation including pitch/roll, so it rolls and pitches with every flip, by design) → **Cinematic** (a lower, wider, slower-trailing shot) → back to Chase. The current mode shows in the HUD; resets to Chase on every fresh Play. Lives in `Game.cycleCamera()` / `Game.onCameraModeChanged` (`src/game.ts`), wired to the `KeyC` keydown in `main.ts` — intentionally not part of the Settings → Controls rebind list (that only covers the v1 must-have actions).
+- **README.md added** to the repo root: the game, live link, features, controls, tech stack, local dev setup, and a note on asset provenance for anyone who forks it.
 
 ## Key implementation facts worth knowing (not in the original doc, learned during the build)
 
