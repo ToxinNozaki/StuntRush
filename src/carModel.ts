@@ -51,23 +51,71 @@ export function fixupLowAlphaMaterials(meshes: BABYLON.AbstractMesh[]) {
   }
 }
 
-/** The license plate's material — confirmed the same way as the body paint, by giving
- *  it a bright emissive color and screenshotting the rendered car rather than trusting
- *  the glTF's material name alone (it happens to match here, but that's luck, not a
- *  rule this file's other material names follow). Only one mesh (`Object_18`) matches
- *  this material by name, but the front and rear plates both render the swapped-in
- *  texture — they apparently share one material instance in the source model — so one
- *  swap covers both without any extra plumbing. */
-const PLATE_MATERIAL_NAME = "numberplate.001";
+/** The license plate's material — confirmed per-model the same way as the body paint,
+ *  by giving a candidate material a bright emissive color and screenshotting the
+ *  rendered car rather than trusting the glTF's material name alone. Two real names
+ *  confirmed so far: "numberplate.001" (Nissan, Lowpoly — Lowpoly actually has neither,
+ *  this just never matches for it, which is fine) and "plate" (the Porsche — it also
+ *  has plate_logo1/plate_logo2/plate_red_lamp but those are separate decorative meshes,
+ *  not the swappable plate face itself). The Hellcat has no plate geometry or material
+ *  at all (checked by inspecting the rear bumper live — just a "DODGE" badge, no plate
+ *  recess) — for cars like that, attachCarVisual() adds a synthetic plate quad instead
+ *  (see QUAD_PLATE_MATERIAL_NAME below) rather than trying to find something that isn't
+ *  there. Only one mesh matches by name on the Nissan (`Object_18`), but the front and
+ *  rear plates both render the swapped-in texture — they share one material instance in
+ *  the source model — so one swap covers both without any extra plumbing. */
+const PLATE_MATERIAL_NAMES = ["numberplate.001", "plate"];
 const PLATE_TEXTURE_NAME = "plateTex";
+/** The material name given to a synthetic plate quad (see attachPlateQuad) — deliberately
+ *  the same as the Nissan's real material, so findPlateMaterial() picks it up for free on
+ *  every later applyPlateText() call (live typing, menu preview swap) without needing to
+ *  know whether a given car's plate is real model geometry or an added quad. */
+const QUAD_PLATE_MATERIAL_NAME = PLATE_MATERIAL_NAMES[0];
 
-function findPlateMaterial(meshes: BABYLON.AbstractMesh[]): BABYLON.PBRMaterial | null {
+export function findPlateMaterial(meshes: BABYLON.AbstractMesh[]): BABYLON.PBRMaterial | null {
   for (const mesh of meshes) {
-    if (mesh.material?.name === PLATE_MATERIAL_NAME) {
+    if (mesh.material && PLATE_MATERIAL_NAMES.includes(mesh.material.name)) {
       return mesh.material as BABYLON.PBRMaterial;
     }
   }
   return null;
+}
+
+/** Adds a small plate-shaped quad to a car that has no plate geometry/material of its
+ *  own (confirmed live, not guessed — see the comment above). Named with
+ *  QUAD_PLATE_MATERIAL_NAME so every later plate-text update finds it exactly like a
+ *  real model material. Position is per-car (see cars.ts's `plateQuad` field) since it's
+ *  inherently model-specific — there's no bounding-box trick that reliably finds "where
+ *  a plate would go" the way body length/width can be inferred. */
+export interface PlateQuadSpec {
+  /** Position in the car root's local space (post-scale-to-fit), roughly chassis-relative. */
+  offset: [number, number, number];
+  rotationY: number;
+  width: number;
+  height: number;
+}
+
+export function attachPlateQuad(scene: BABYLON.Scene, parent: BABYLON.TransformNode, spec: PlateQuadSpec): BABYLON.Mesh {
+  const quad = BABYLON.MeshBuilder.CreatePlane(
+    "plateQuad",
+    { width: spec.width, height: spec.height, sideOrientation: BABYLON.Mesh.DOUBLESIDE },
+    scene
+  );
+  const material = new BABYLON.PBRMaterial(QUAD_PLATE_MATERIAL_NAME, scene);
+  material.metallic = 0;
+  material.roughness = 0.6;
+  quad.material = material;
+  quad.parent = parent;
+  quad.position.set(...spec.offset);
+  quad.rotation.y = spec.rotationY;
+  // A plane's UVs read left-to-right as seen from its own +Z face; rotating it to
+  // face backward (rotationY = PI) swings that face toward the viewer but mirrors
+  // the text in the process — flip X to undo that, same way a mirror-image sticker
+  // would need to be cut backwards to read correctly once applied to glass from
+  // outside. Confirmed by screenshotting the actual rendered plate, not assumed.
+  if (Math.abs(spec.rotationY - Math.PI) < 0.01) quad.scaling.x = -1;
+  quad.isPickable = false;
+  return quad;
 }
 
 function sanitizePlateText(text: string): string {
@@ -133,7 +181,8 @@ export async function attachCarVisual(
   groundClearance: number,
   bodyColorHex?: string,
   plateText?: string,
-  modelUrl: string = DEFAULT_MODEL_URL
+  modelUrl: string = DEFAULT_MODEL_URL,
+  plateQuadSpec?: PlateQuadSpec
 ): Promise<CarVisual> {
   const result = await ImportMeshAsync(modelUrl, scene);
   const root = new BABYLON.TransformNode("carVisualRoot", scene);
@@ -145,8 +194,8 @@ export async function attachCarVisual(
   }
 
   if (bodyColorHex) applyBodyColor(result.meshes, bodyColorHex);
-  if (plateText) applyPlateText(scene, result.meshes, plateText);
   fixupLowAlphaMaterials(result.meshes);
+  const needsPlateQuad = !!plateQuadSpec && !findPlateMaterial(result.meshes);
 
   root.parent = chassis;
   root.position.setAll(0);
@@ -186,6 +235,15 @@ export async function attachCarVisual(
   const rearZ = local(new BABYLON.Vector3(0, 0, finalBounds.min.z)).z;
   const halfTrackWidth = 0.6;
   const lampY = local(new BABYLON.Vector3(0, finalBounds.min.y + finalSize.y * 0.33, 0)).y;
+
+  // Built here (not up by the body-color/alpha fixups above) because its offset is
+  // specified in chassis-local units, same coordinate space as the headlight/taillight
+  // offsets just below — needs frontZ/rearZ/lampY to already exist.
+  let plateQuad: BABYLON.Mesh | null = null;
+  if (needsPlateQuad && plateQuadSpec) {
+    plateQuad = attachPlateQuad(scene, chassis, plateQuadSpec);
+  }
+  if (plateText) applyPlateText(scene, [...result.meshes, ...(plateQuad ? [plateQuad] : [])], plateText);
 
   // Round lenses read as actual lamps; the old flat emissive boxes just looked like
   // glowing squares taped to the bumper. A soft Fresnel rim (bright face-on, fading
@@ -250,7 +308,7 @@ export async function attachCarVisual(
 
   return {
     root,
-    allMeshes: [...result.meshes, ...headlightMeshes, ...taillightMeshes],
+    allMeshes: [...result.meshes, ...headlightMeshes, ...taillightMeshes, ...(plateQuad ? [plateQuad] : [])],
     headlightLights,
     headlightLensMeshes,
     headlightLocalOffsets,

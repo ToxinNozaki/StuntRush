@@ -19,7 +19,6 @@ import { DevOverlay } from "./debug/devOverlay";
 import { MenuScene } from "./menuScene";
 import { EnvironmentController } from "./environment";
 import { hueToHex, getCarSpec } from "./cars";
-import { DEFAULT_MODEL_URL } from "./carModel";
 import { MAX_CHAT_LENGTH } from "./chat";
 
 async function main() {
@@ -104,7 +103,7 @@ async function main() {
   const settings = loadSettings();
   input.setBindings(settings.keyBindings);
   menuScene.setBodyColor(hueToHex(settings.bodyColorHue));
-  menuScene.setCarModel(getCarSpec(settings.carId).modelUrl ?? DEFAULT_MODEL_URL);
+  menuScene.setCarModel(getCarSpec(settings.carId));
   let audio: EngineAudio | null = null;
 
   const applyPreset = (preset: GraphicsPreset) => {
@@ -242,7 +241,7 @@ async function main() {
   menu.onCarChanged = (carId) => {
     settings.carId = carId;
     saveSettings(settings);
-    menuScene.setCarModel(getCarSpec(carId).modelUrl ?? DEFAULT_MODEL_URL);
+    menuScene.setCarModel(getCarSpec(carId));
   };
 
   // --- Paint color slider: a single hue drives both the preview and the live car. ---

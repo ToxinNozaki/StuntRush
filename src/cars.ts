@@ -1,6 +1,11 @@
+import type { PlateQuadSpec } from "./carModel";
+
 const LOWPOLY_MODEL_URL = `${import.meta.env.BASE_URL}models/ps1-car.glb`;
 const HELLCAT_MODEL_URL = `${import.meta.env.BASE_URL}models/hellcat.glb`;
 const PORSCHE_MODEL_URL = `${import.meta.env.BASE_URL}models/porsche-911.glb`;
+
+/** Which sound asset set (see src/audio.ts's AUDIO_PROFILES) a car's engine uses. */
+export type AudioProfileId = "hellcat" | "nissan350" | "generic";
 
 export interface CarSpec {
   id: string;
@@ -13,6 +18,22 @@ export interface CarSpec {
    *  and plate text still apply best-effort (silently no-op if the model doesn't
    *  have a matching material) — see carModel.ts's BODY_PAINT_MATERIAL_NAME note. */
   modelUrl?: string;
+  /** Baked turntable thumbnail for the car-select screen (see scripts/bake-thumbnails.mjs).
+   *  Falls back to the live MenuScene turntable if missing. */
+  thumbnailUrl?: string;
+  /** Which engine sound set src/audio.ts should load for this car. */
+  audioProfile: AudioProfileId;
+  /** "material" (default): the model has its own plate material (Nissan's
+   *  "numberplate.001", the Porsche's "plate") that applyPlateText() swaps directly —
+   *  confirmed live per car, not assumed. "quad": the model has no plate geometry at
+   *  all (confirmed live — e.g. the Hellcat's rear bumper has no plate recess, just a
+   *  badge), so a small quad carrying the custom plate texture gets added instead; see
+   *  carModel.ts's attachPlateQuad() and the required plateQuad placement below. */
+  plateMode?: "material" | "quad";
+  /** Required when plateMode is "quad" — per-car placement in chassis-local units
+   *  (same coordinate space as the headlight/taillight offsets in carModel.ts),
+   *  found by trial placement in-browser, not computed from the model's bounding box. */
+  plateQuad?: PlateQuadSpec;
 }
 
 /**
@@ -27,15 +48,16 @@ export interface CarSpec {
  * away some power) so the roster has an actual muscle-vs-sports-car choice beyond paint.
  */
 export const CARS: CarSpec[] = [
-  { id: "stock", name: "Stock", enginePowerMultiplier: 1, gripMultiplier: 1 },
-  { id: "sport", name: "Sport", enginePowerMultiplier: 1.15, gripMultiplier: 0.9 },
-  { id: "gt", name: "GT", enginePowerMultiplier: 0.9, gripMultiplier: 1.15 },
+  { id: "stock", name: "Stock", enginePowerMultiplier: 1, gripMultiplier: 1, audioProfile: "nissan350" },
+  { id: "sport", name: "Sport", enginePowerMultiplier: 1.15, gripMultiplier: 0.9, audioProfile: "nissan350" },
+  { id: "gt", name: "GT", enginePowerMultiplier: 0.9, gripMultiplier: 1.15, audioProfile: "nissan350" },
   {
     id: "lowpoly",
     name: "Lowpoly",
     enginePowerMultiplier: 1.05,
     gripMultiplier: 0.8,
     modelUrl: LOWPOLY_MODEL_URL,
+    audioProfile: "generic",
   },
   {
     id: "hellcat",
@@ -43,6 +65,9 @@ export const CARS: CarSpec[] = [
     enginePowerMultiplier: 1.3,
     gripMultiplier: 0.85,
     modelUrl: HELLCAT_MODEL_URL,
+    audioProfile: "hellcat",
+    plateMode: "quad",
+    plateQuad: { offset: [0, -0.05, -2.1], rotationY: Math.PI, width: 0.32, height: 0.16 },
   },
   {
     id: "turbo",
@@ -50,6 +75,7 @@ export const CARS: CarSpec[] = [
     enginePowerMultiplier: 1.1,
     gripMultiplier: 1.2,
     modelUrl: PORSCHE_MODEL_URL,
+    audioProfile: "generic",
   },
 ];
 

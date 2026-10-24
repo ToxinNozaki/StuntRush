@@ -1,6 +1,6 @@
 import * as BABYLON from "@babylonjs/core";
 import { InputManager } from "./input";
-import { attachCarVisual, type CarVisual } from "./carModel";
+import { attachCarVisual, type CarVisual, type PlateQuadSpec } from "./carModel";
 import type { CarSpec } from "./cars";
 
 interface WheelSpec {
@@ -57,6 +57,7 @@ export class VehicleController {
   private bodyColorHex: string | null = null;
   private plateText: string | null = null;
   private modelUrl: string | undefined = undefined;
+  private plateQuadSpec: PlateQuadSpec | undefined = undefined;
 
   private groundedWheelCount = 0;
   private spawnPosition: BABYLON.Vector3;
@@ -126,7 +127,8 @@ export class VehicleController {
       0.32,
       this.bodyColorHex ?? undefined,
       this.plateText ?? undefined,
-      this.modelUrl
+      this.modelUrl,
+      this.plateQuadSpec
     );
     this.visualRoot = visual.root;
     this.carVisual = visual;
@@ -140,6 +142,7 @@ export class VehicleController {
     this.enginePowerMultiplier = spec.enginePowerMultiplier;
     this.carGripMultiplier = spec.gripMultiplier;
     this.modelUrl = spec.modelUrl;
+    this.plateQuadSpec = spec.plateMode === "quad" ? spec.plateQuad : undefined;
   }
 
   /** Call before attachVisual() so the paint color is baked into the import. */

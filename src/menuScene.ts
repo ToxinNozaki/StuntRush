@@ -1,7 +1,16 @@
 import * as BABYLON from "@babylonjs/core";
 import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
 import "@babylonjs/loaders/glTF";
-import { applyBodyColor, applyPlateText, fixupLowAlphaMaterials, DEFAULT_MODEL_URL } from "./carModel";
+import {
+  applyBodyColor,
+  applyPlateText,
+  fixupLowAlphaMaterials,
+  findPlateMaterial,
+  attachPlateQuad,
+  DEFAULT_MODEL_URL,
+  type PlateQuadSpec,
+} from "./carModel";
+import type { CarSpec } from "./cars";
 
 /**
  * The backdrop behind the main menu: the car on a slow turntable in a dark,
@@ -22,6 +31,7 @@ export class MenuScene {
    *  slower-to-resolve load clobbering a newer one if the player clicks
    *  through car choices faster than models can load. */
   private currentModelUrl: string | null = null;
+  private currentPlateQuadSpec: PlateQuadSpec | undefined = undefined;
 
   private readonly scene: BABYLON.Scene;
   private readonly camera: BABYLON.UniversalCamera;
@@ -82,7 +92,9 @@ export class MenuScene {
 
   /** Swaps the turntable car to a different model (e.g. the player picked a car with
    *  its own `modelUrl` in cars.ts). A no-op if it's already showing this model. */
-  setCarModel(modelUrl: string) {
+  setCarModel(spec: CarSpec) {
+    const modelUrl = spec.modelUrl ?? DEFAULT_MODEL_URL;
+    this.currentPlateQuadSpec = spec.plateMode === "quad" ? spec.plateQuad : undefined;
     if (modelUrl === this.currentModelUrl) return;
     if (this.buildPromise) {
       void this.buildPromise.then(() => this.loadModel(modelUrl));
@@ -138,7 +150,6 @@ export class MenuScene {
     this.previewMeshes = result.meshes;
     fixupLowAlphaMaterials(this.previewMeshes);
     if (this.lastColorHex) applyBodyColor(this.previewMeshes, this.lastColorHex);
-    if (this.lastPlateText) applyPlateText(this.scene, this.previewMeshes, this.lastPlateText);
 
     const bounds = root.getHierarchyBoundingVectors(true);
     const size = bounds.max.subtract(bounds.min);
@@ -148,6 +159,15 @@ export class MenuScene {
     const scaledBounds = root.getHierarchyBoundingVectors(true);
     const center = scaledBounds.min.add(scaledBounds.max).scale(0.5);
     root.position = new BABYLON.Vector3(-center.x, -scaledBounds.min.y, -center.z);
+
+    // Same "no isolated plate material" case carModel.ts's attachCarVisual() handles
+    // for real gameplay — mirrored here so the menu preview matches what the player
+    // will actually see in-game, not a plain bumper with gameplay-only plate text.
+    if (this.currentPlateQuadSpec && !findPlateMaterial(this.previewMeshes)) {
+      const quad = attachPlateQuad(this.scene, root, this.currentPlateQuadSpec);
+      this.previewMeshes = [...this.previewMeshes, quad];
+    }
+    if (this.lastPlateText) applyPlateText(this.scene, this.previewMeshes, this.lastPlateText);
 
     this.root = root;
     oldRoot?.dispose(false, true);
