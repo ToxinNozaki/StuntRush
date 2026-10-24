@@ -9,6 +9,7 @@ export interface BuiltWorld {
 const WATER_TOWER_URL = `${import.meta.env.BASE_URL}models/water-tower.glb`;
 const ELECTRICAL_BOXES_URL = `${import.meta.env.BASE_URL}models/electrical-boxes.glb`;
 const PEDESTRIANS_URL = `${import.meta.env.BASE_URL}models/pedestrians.glb`;
+const BRIDGE_URL = `${import.meta.env.BASE_URL}models/bridge.glb`;
 
 /** Real Poly Haven PBR sets (asphalt/concrete/factory-wall), downscaled to 1024px and
  *  with their normal maps converted from the source EXRs to JPEG offline — the raw
@@ -388,6 +389,25 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
   void loadDecoration(WATER_TOWER_URL, new BABYLON.Vector3(bounds.xMax + 35, 0, 60), 22, Math.PI / 5);
   void loadDecoration(ELECTRICAL_BOXES_URL, new BABYLON.Vector3(bounds.xMin - 15, 0, 100), 4, Math.PI / 3);
   void loadDecoration(ELECTRICAL_BOXES_URL, new BABYLON.Vector3(bounds.xMax + 15, 0, 260), 4, -Math.PI / 4);
+  // From the asset dump's "Bridge or Highway pack" — a single cohesive, already
+  // well-textured (real baseColor+normal maps, not untextured like the pedestrian
+  // pack) highway overpass model, no multi-object disambiguation needed unlike the
+  // traffic car pack. Placed beyond the far boundary wall as a distant landmark,
+  // same purely-decorative treatment as the water tower. First piece pulled from
+  // the larger, unsurveyed world-building asset packs (roads/buildings/bridges) —
+  // see the Open Questions backlog note on the rest.
+  //
+  // Scale note: the source model is a genuinely flat structure (its bounding box
+  // is ~46 wide x only ~2.9 tall x ~37 deep) — `loadDecoration()`'s targetSize
+  // normalizes against the LARGEST dimension (width here, not height), so a
+  // first attempt at targetSize 70 produced an overpass only ~4.3 world units
+  // tall: convincing up close (verified in-browser — looks like a real elevated
+  // highway with pillars), but visually disappears at normal driving distance,
+  // since uniform scaling can't make it proportionally taller without also
+  // making it proportionally wider. targetSize 170 (and pulling it ~30 units
+  // closer to the boundary) is the tradeoff that keeps it readable as a distant
+  // landmark without making its footprint absurd.
+  void loadDecoration(BRIDGE_URL, new BABYLON.Vector3(60, 0, bounds.zMax + 40), 170, Math.PI / 2);
 
   // Pedestrians, from the "24-lowpoly-characters" asset-dump pack (converted offline
   // FBX -> glb with FBX2glTF, see DESIGN_DOC.md's asset-dump notes — despite the folder's
