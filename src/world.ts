@@ -8,6 +8,7 @@ export interface BuiltWorld {
 
 const WATER_TOWER_URL = `${import.meta.env.BASE_URL}models/water-tower.glb`;
 const ELECTRICAL_BOXES_URL = `${import.meta.env.BASE_URL}models/electrical-boxes.glb`;
+const PEDESTRIANS_URL = `${import.meta.env.BASE_URL}models/pedestrians.glb`;
 
 /** Real Poly Haven PBR sets (asphalt/concrete/factory-wall), downscaled to 1024px and
  *  with their normal maps converted from the source EXRs to JPEG offline — the raw
@@ -387,6 +388,90 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
   void loadDecoration(WATER_TOWER_URL, new BABYLON.Vector3(bounds.xMax + 35, 0, 60), 22, Math.PI / 5);
   void loadDecoration(ELECTRICAL_BOXES_URL, new BABYLON.Vector3(bounds.xMin - 15, 0, 100), 4, Math.PI / 3);
   void loadDecoration(ELECTRICAL_BOXES_URL, new BABYLON.Vector3(bounds.xMax + 15, 0, 260), 4, -Math.PI / 4);
+
+  // Pedestrians, from the "24-lowpoly-characters" asset-dump pack (converted offline
+  // FBX -> glb with FBX2glTF, see DESIGN_DOC.md's asset-dump notes — despite the folder's
+  // name the FBX only contains two rigged base meshes, "FM-lowpoly" and "M-lowpoly", no
+  // textures/materials and no animation, so they render in whatever static bind pose the
+  // rig exported with). Each spot does its own fresh ImportMeshAsync rather than
+  // clone()-ing a shared template (the pattern used for the sky plane): a skinned/rigged
+  // mesh's clone() doesn't rebind its skeleton correctly here — tried it first, and every
+  // clone rendered as a giant melted blob instead of a standing figure. Re-importing per
+  // spot is a little more wasteful (79KB x5 instead of x1) but avoids the skeleton-sharing
+  // bug entirely, and the file is tiny either way. Each figure gets its own flat muted
+  // PBRMaterial (a few clothing-ish tones) since the source mesh has no material at all —
+  // left genuinely low-poly/flat-shaded on purpose rather than faked up with a texture
+  // that doesn't exist in the source.
+  const spots: { mesh: "FM-lowpoly" | "M-lowpoly"; position: BABYLON.Vector3; rotationY: number; tint: string }[] = [
+    { mesh: "M-lowpoly", position: new BABYLON.Vector3(bounds.xMin - 10, 0, 40), rotationY: Math.PI / 2, tint: "#2d4a6b" },
+    { mesh: "FM-lowpoly", position: new BABYLON.Vector3(bounds.xMin - 10, 0, 44), rotationY: Math.PI / 2.3, tint: "#8a4b4b" },
+    { mesh: "M-lowpoly", position: new BABYLON.Vector3(bounds.xMax + 10, 0, 160), rotationY: -Math.PI / 2, tint: "#4b6b4f" },
+    { mesh: "FM-lowpoly", position: new BABYLON.Vector3(bounds.xMax + 12, 0, 165), rotationY: -Math.PI / 2.5, tint: "#6b5a8a" },
+    { mesh: "M-lowpoly", position: new BABYLON.Vector3(bounds.xMin - 12, 0, 280), rotationY: Math.PI / 1.8, tint: "#8a7a3d" },
+  ];
+
+  const loadPedestrian = async (spot: (typeof spots)[number]) => {
+    const result = await ImportMeshAsync(PEDESTRIANS_URL, scene);
+    if (isDisposed) {
+      for (const mesh of result.meshes) mesh.dispose();
+      return;
+    }
+    const keep = result.meshes.find((m) => m.name === spot.mesh);
+    if (!keep) {
+      for (const mesh of result.meshes) mesh.dispose();
+      return;
+    }
+    // Detach `keep` from the imported hierarchy (preserving its world transform,
+    // in case an ancestor like the FBX's RootNode carries an axis-correction
+    // rotation/scale — same gotcha documented for the traffic car pack in
+    // traffic.ts) BEFORE disposing its former siblings/parents. Disposing a
+    // mesh cascades to its children by default; disposing first and
+    // reparenting after (the original bug here) silently destroyed `keep` too,
+    // since it was still parented under the node being disposed.
+    keep.setParent(root);
+    for (const mesh of result.meshes) {
+      if (mesh !== keep && !mesh.isDisposed()) mesh.dispose();
+    }
+    keep.isPickable = false;
+    // `setParent()` preserved world rotation/scale into keep's own local
+    // transform — this pack's RootNode carries a ~100x correction scale with
+    // a negative Y component (a unit-conversion + handedness-flip combo
+    // baked in by the FBX source) *and* a -90° X / 180° Y Euler correction
+    // (the actual Z-up -> Y-up axis fix), the same class of gotcha as the
+    // traffic car pack's axis correction. setParent() leaves that correction
+    // on `.rotation` (Euler), not `.rotationQuaternion` (which stays null) —
+    // overwriting rotationQuaternion outright (as a first attempt here did)
+    // silently threw the Euler correction away and left every figure lying
+    // flat on the ground. Converting the existing Euler into a quaternion
+    // before composing the desired yaw on top preserves it. Scale/position
+    // are then measured and applied entirely in WORLD space via
+    // `getHierarchyBoundingVectors()` — the same technique `loadDecoration()`
+    // above already uses successfully, and correct regardless of any mirror
+    // transform in the ancestry.
+    keep.computeWorldMatrix(true);
+    let worldBounds = keep.getHierarchyBoundingVectors(true);
+    const rawHeight = worldBounds.max.y - worldBounds.min.y || 1;
+    keep.scaling.scaleInPlace(1.75 / rawHeight);
+    const yaw = BABYLON.Quaternion.RotationAxis(BABYLON.Vector3.Up(), spot.rotationY);
+    const baseRotation = keep.rotationQuaternion ?? BABYLON.Quaternion.FromEulerVector(keep.rotation);
+    keep.rotationQuaternion = yaw.multiply(baseRotation);
+    keep.computeWorldMatrix(true);
+    worldBounds = keep.getHierarchyBoundingVectors(true);
+    const center = worldBounds.min.add(worldBounds.max).scale(0.5);
+    keep.position.x += spot.position.x - center.x;
+    keep.position.z += spot.position.z - center.z;
+    keep.position.y += spot.position.y - worldBounds.min.y;
+    const material = new BABYLON.PBRMaterial(`pedestrianMat-${spot.tint}`, scene);
+    material.albedoColor = BABYLON.Color3.FromHexString(spot.tint);
+    material.metallic = 0;
+    material.roughness = 0.85;
+    // The mirror component in that correction scale flips triangle winding
+    // (negative world-matrix determinant), which would otherwise render as
+    // inside-out/invisible from the outside under default backface culling.
+    material.backFaceCulling = false;
+    keep.material = material;
+  };
+  for (const spot of spots) void loadPedestrian(spot);
 
   return {
     dispose() {
