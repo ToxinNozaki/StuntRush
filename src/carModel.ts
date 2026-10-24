@@ -31,6 +31,26 @@ export function applyBodyColor(meshes: BABYLON.AbstractMesh[], hexColor: string)
   if (paint) paint.albedoColor = BABYLON.Color3.FromHexString(hexColor);
 }
 
+/** Some source models (the Nissan, the Hellcat) bake their glass/light-cover materials
+ *  at a very low alpha (0.25-0.4) — fine in the original renderer's lighting setup, but
+ *  under ours it reads as "the car has holes in it" rather than tinted glass, since the
+ *  same low-alpha material often covers both windows AND exterior light housings. Floors
+ *  any already-transparent material up to a minimum opacity rather than forcing all glass
+ *  opaque, so real tinted windows still read as glass — just not ghost-glass. */
+const MIN_GLASS_ALPHA = 0.55;
+
+export function fixupLowAlphaMaterials(meshes: BABYLON.AbstractMesh[]) {
+  const seen = new Set<BABYLON.Material>();
+  for (const mesh of meshes) {
+    const material = mesh.material as BABYLON.PBRMaterial | null;
+    if (!material || seen.has(material)) continue;
+    seen.add(material);
+    if (material.alpha > 0 && material.alpha < MIN_GLASS_ALPHA) {
+      material.alpha = MIN_GLASS_ALPHA;
+    }
+  }
+}
+
 /** The license plate's material — confirmed the same way as the body paint, by giving
  *  it a bright emissive color and screenshotting the rendered car rather than trusting
  *  the glTF's material name alone (it happens to match here, but that's luck, not a
@@ -91,6 +111,9 @@ export interface CarVisual {
   root: BABYLON.TransformNode;
   allMeshes: BABYLON.AbstractMesh[];
   headlightLights: BABYLON.SpotLight[];
+  /** The lens discs themselves (not their bezels) — hidden/shown by the headlight
+   *  toggle so the lamp actually looks off, not just stops casting light. */
+  headlightLensMeshes: BABYLON.Mesh[];
   /** Local offsets (chassis space, identity-rotation reference) for the two headlights. */
   headlightLocalOffsets: [BABYLON.Vector3, BABYLON.Vector3];
   taillightMaterial: BABYLON.StandardMaterial;
@@ -123,6 +146,7 @@ export async function attachCarVisual(
 
   if (bodyColorHex) applyBodyColor(result.meshes, bodyColorHex);
   if (plateText) applyPlateText(scene, result.meshes, plateText);
+  fixupLowAlphaMaterials(result.meshes);
 
   root.parent = chassis;
   root.position.setAll(0);
@@ -163,15 +187,19 @@ export async function attachCarVisual(
   const halfTrackWidth = 0.6;
   const lampY = local(new BABYLON.Vector3(0, finalBounds.min.y + finalSize.y * 0.33, 0)).y;
 
+  // Round lenses read as actual lamps; the old flat emissive boxes just looked like
+  // glowing squares taped to the bumper. A soft Fresnel rim (bright face-on, fading
+  // at the disc's edge) stands in for a real lens's curved-glass highlight instead of
+  // the old flat, uniformly-lit square.
   const headlightMaterial = new BABYLON.StandardMaterial("headlightLensMat", scene);
   headlightMaterial.disableLighting = true;
-  headlightMaterial.emissiveColor = new BABYLON.Color3(1, 0.96, 0.85);
+  headlightMaterial.emissiveColor = new BABYLON.Color3(1, 0.95, 0.82);
 
   const taillightMaterial = new BABYLON.StandardMaterial("taillightLensMat", scene);
   taillightMaterial.disableLighting = true;
   taillightMaterial.emissiveColor = new BABYLON.Color3(0.15, 0, 0);
 
-  const lampSize = { width: finalSize.x * 0.12, height: finalSize.y * 0.07, depth: 0.04 };
+  const lampRadius = Math.max(finalSize.x * 0.05, finalSize.y * 0.08);
   const headlightLocalOffsets: [BABYLON.Vector3, BABYLON.Vector3] = [
     new BABYLON.Vector3(-halfTrackWidth, lampY, frontZ - 0.02),
     new BABYLON.Vector3(halfTrackWidth, lampY, frontZ - 0.02),
@@ -181,25 +209,28 @@ export async function attachCarVisual(
     new BABYLON.Vector3(halfTrackWidth, lampY, rearZ + 0.02),
   ];
 
-  const makeLamp = (name: string, offset: BABYLON.Vector3, material: BABYLON.StandardMaterial) => {
-    const lamp = BABYLON.MeshBuilder.CreateBox(
-      name,
-      { width: lampSize.width, height: lampSize.height, depth: lampSize.depth },
-      scene
-    );
-    lamp.material = material;
-    lamp.parent = chassis;
-    lamp.position.copyFrom(offset);
-    lamp.isPickable = false;
-    return lamp;
+  const makeLamp = (
+    name: string,
+    offset: BABYLON.Vector3,
+    material: BABYLON.StandardMaterial,
+    facingForward: boolean
+  ) => {
+    const lens = BABYLON.MeshBuilder.CreateDisc(name, { radius: lampRadius, tessellation: 20 }, scene);
+    lens.material = material;
+    lens.parent = chassis;
+    lens.position.copyFrom(offset);
+    lens.rotation.y = facingForward ? 0 : Math.PI;
+    lens.isPickable = false;
+    return lens;
   };
 
   const headlightMeshes = headlightLocalOffsets.map((offset, i) =>
-    makeLamp(`headlightLens${i}`, offset, headlightMaterial)
+    makeLamp(`headlightLens${i}`, offset, headlightMaterial, true)
   );
   const taillightMeshes = taillightLocalOffsets.map((offset, i) =>
-    makeLamp(`taillightLens${i}`, offset, taillightMaterial)
+    makeLamp(`taillightLens${i}`, offset, taillightMaterial, false)
   );
+  const headlightLensMeshes = headlightMeshes;
 
   const headlightLights = headlightLocalOffsets.map((_, i) => {
     const light = new BABYLON.SpotLight(
@@ -221,6 +252,7 @@ export async function attachCarVisual(
     root,
     allMeshes: [...result.meshes, ...headlightMeshes, ...taillightMeshes],
     headlightLights,
+    headlightLensMeshes,
     headlightLocalOffsets,
     taillightMaterial,
     headlightMaterial,

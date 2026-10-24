@@ -131,6 +131,7 @@ export class VehicleController {
     this.visualRoot = visual.root;
     this.carVisual = visual;
     for (const light of visual.headlightLights) light.setEnabled(this.headlightsOn);
+    for (const lens of visual.headlightLensMeshes) lens.setEnabled(this.headlightsOn);
   }
 
   /** Call before attachVisual() so the performance stats (and the model, if this
@@ -154,6 +155,7 @@ export class VehicleController {
   toggleHeadlights() {
     this.headlightsOn = !this.headlightsOn;
     this.carVisual?.headlightLights.forEach((l) => l.setEnabled(this.headlightsOn));
+    this.carVisual?.headlightLensMeshes.forEach((m) => m.setEnabled(this.headlightsOn));
   }
 
   setGripMultiplier(multiplier: number) {

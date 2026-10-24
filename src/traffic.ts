@@ -1,6 +1,7 @@
 import * as BABYLON from "@babylonjs/core";
 import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
 import "@babylonjs/loaders/glTF";
+import { fixupLowAlphaMaterials } from "./carModel";
 
 const TRAFFIC_PACK_URL = `${import.meta.env.BASE_URL}models/traffic-cars.glb`;
 
@@ -158,6 +159,7 @@ export class TrafficController {
     carRoot.position.z = chassisWorldPos.z - scaledCenter.z;
     carRoot.position.y = chassisWorldPos.y - scaledBounds.min.y - groundClearance;
 
+    fixupLowAlphaMaterials(carRoot.getChildMeshes());
     for (const mesh of carRoot.getChildMeshes()) mesh.isPickable = false;
   }
 

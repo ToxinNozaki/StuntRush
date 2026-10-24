@@ -1,7 +1,7 @@
 import * as BABYLON from "@babylonjs/core";
 import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
 import "@babylonjs/loaders/glTF";
-import { applyBodyColor, applyPlateText, DEFAULT_MODEL_URL } from "./carModel";
+import { applyBodyColor, applyPlateText, fixupLowAlphaMaterials, DEFAULT_MODEL_URL } from "./carModel";
 
 /**
  * The backdrop behind the main menu: the car on a slow turntable in a dark,
@@ -136,6 +136,7 @@ export class MenuScene {
       if (mesh.parent === null) mesh.parent = root;
     }
     this.previewMeshes = result.meshes;
+    fixupLowAlphaMaterials(this.previewMeshes);
     if (this.lastColorHex) applyBodyColor(this.previewMeshes, this.lastColorHex);
     if (this.lastPlateText) applyPlateText(this.scene, this.previewMeshes, this.lastPlateText);
 
