@@ -48,21 +48,37 @@
       #hud .hint { opacity: 0.7; font-size: 12px; }
       #hud.hidden { display: none; }
 
-      #menu {
-        position: fixed; inset: 0; background: transparent;
-        color: #eee; font: 14px/1.4 "FreckleFace", monospace;
-        display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-        padding-bottom: 10%; pointer-events: none;
+      /* Shared full-screen panel convention: one sibling per step of the flow
+         (Entry -> Map Select -> Car Select -> Settings), each a fixed overlay
+         toggled by .hidden, each sliding/fading in via .entering so forward vs.
+         backward navigation reads as directional rather than a flat cross-fade. */
+      .screenPanel {
+        position: fixed; inset: 0; color: #eee; font: 14px/1.4 "FreckleFace", monospace;
+        display: flex; flex-direction: column; align-items: center;
+        transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.3, 1.1);
       }
-      #menu.hidden { display: none; }
-      #menu > * { pointer-events: auto; }
-      #menu h1 {
-        font-size: 28px; margin: 0 0 24px; font-weight: normal; letter-spacing: 2px;
-        text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+      .screenPanel.hidden { display: none; }
+      .screenPanel.entering-forward { animation: panelInForward 0.4s cubic-bezier(0.2, 0.8, 0.3, 1.1); }
+      .screenPanel.entering-back { animation: panelInBack 0.4s cubic-bezier(0.2, 0.8, 0.3, 1.1); }
+      @keyframes panelInForward {
+        from { opacity: 0; transform: translateX(28px); }
+        to { opacity: 1; transform: translateX(0); }
       }
+      @keyframes panelInBack {
+        from { opacity: 0; transform: translateX(-28px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      #entryScreen {
+        background: transparent; justify-content: flex-end; padding-bottom: 12%; pointer-events: none;
+      }
+      #entryScreen > * { pointer-events: auto; }
       #logoMark {
         position: absolute; top: 5%; left: 50%; transform: translateX(-50%);
         width: min(440px, 80vw); aspect-ratio: 2000 / 1000; pointer-events: none;
+      }
+      #logoMark::before {
+        content: ""; position: absolute; inset: 0;
         background-image: url('%BASE_URL%branding/logo.png');
         background-size: contain; background-repeat: no-repeat; background-position: center;
       }
@@ -82,21 +98,72 @@
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
       }
-      #mapList { list-style: none; margin: 0 0 10px; padding: 0; width: 220px; }
-      #mapList li { margin-bottom: 6px; }
-      #mapList button {
-        width: 100%; padding: 8px; font: 13px "FreckleFace", monospace; text-align: left;
-        background: #222; color: #ccc; border: 1px solid #444; cursor: pointer;
+      #entryPlayButton {
+        padding: 14px 44px; font: 16px "FreckleFace", monospace; letter-spacing: 2px;
+        background: #333; color: #fff; border: 1px solid #888; cursor: pointer;
+        clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
       }
-      #mapList button.selected { background: #333; color: #fff; border-color: #888; }
+      #entryMenuButtons { display: flex; gap: 10px; margin-top: 10px; }
+      #settingsButton {
+        padding: 10px 20px; font: 14px "FreckleFace", monospace; background: #222; color: #ccc;
+        border: 1px solid #555; cursor: pointer;
+      }
 
-      #carListLabel { width: 220px; font-size: 11px; opacity: 0.6; margin-bottom: 4px; letter-spacing: 1px; }
-      #carList { display: flex; gap: 6px; width: 220px; margin-bottom: 14px; }
-      #carList button {
-        flex: 1; padding: 7px 4px; font: 12px "FreckleFace", monospace; text-align: center;
-        background: #1a1a1a; color: #bbb; border: 1px solid #3a3a3a; cursor: pointer;
+      /* --- Map Select / Car Select: a title, a horizontal filmstrip of baked-image
+         tiles (not a generic centered card grid), and a next/back footer. --- */
+      #mapSelect, #carSelect { background: rgba(5,6,9,0.55); justify-content: center; }
+      .selectTitle {
+        font-size: 13px; letter-spacing: 3px; text-transform: uppercase; opacity: 0.6;
+        margin: 0 0 14px;
       }
-      #carList button.selected { background: #2e2e2e; color: #fff; border-color: #888; }
+      .filmstrip {
+        display: flex; gap: 14px; overflow-x: auto; padding: 6px 4px 18px;
+        max-width: 92vw; scroll-snap-type: x proximity;
+      }
+      .thumbTile {
+        position: relative; flex: 0 0 auto; width: 220px; cursor: pointer; scroll-snap-align: center;
+        border: 1px solid #3a3a3a; background: #141416;
+        clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+        transition: border-color 0.15s ease, transform 0.15s ease;
+      }
+      .thumbTile img { width: 100%; display: block; aspect-ratio: 1 / 1; object-fit: cover; }
+      .mapTile img { aspect-ratio: 8 / 5; }
+      .thumbTile .thumbLabel {
+        padding: 8px 10px; font-size: 13px; letter-spacing: 1px;
+        display: flex; justify-content: space-between; align-items: baseline;
+      }
+      .thumbTile .thumbLabel .stat { font-size: 10px; opacity: 0.55; }
+      .thumbTile:hover { border-color: #888; transform: translateY(-2px); }
+      .thumbTile.selected { border-color: #ffb347; box-shadow: 0 0 0 1px #ffb347 inset; }
+      .thumbTile.selected .thumbLabel { background: #241c10; color: #ffd37a; }
+
+      /* Animated stat-bar reveal on the selected car tile — Forza/GT-style spec
+         sheet, not a static number, so picking a car actually feels like a choice. */
+      .statBars { padding: 0 10px 10px; display: none; flex-direction: column; gap: 4px; }
+      .thumbTile.selected .statBars { display: flex; }
+      .statBarRow { display: flex; align-items: center; gap: 6px; font-size: 9px; opacity: 0.8; }
+      .statBarRow .statName { width: 34px; letter-spacing: 1px; }
+      .statBarTrack { flex: 1; height: 4px; background: #2a2a2a; }
+      .statBarFill {
+        height: 100%; background: #ffb347; width: 0%;
+        transition: width 0.45s cubic-bezier(0.2, 0.8, 0.3, 1.1);
+      }
+
+      .selectFooter { display: flex; gap: 12px; align-items: center; margin-top: 6px; }
+      .selectFooter button {
+        padding: 10px 24px; font: 14px "FreckleFace", monospace; cursor: pointer;
+      }
+      .selectBackButton { background: #222; color: #ccc; border: 1px solid #555; }
+      .selectNextButton {
+        background: #333; color: #fff; border: 1px solid #888;
+        clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+      }
+      .selectNextButton:disabled { opacity: 0.4; cursor: default; }
+      .selectFlavor { font-size: 12px; opacity: 0.6; margin: -6px 0 14px; max-width: 400px; text-align: center; }
+
+      #mapSelect #envToggles { width: 220px; margin: 4px 0 18px; }
+      #carSelect #paintRow, #carSelect #plateRow { width: 220px; }
+      #carSelect .customizeRow { display: flex; gap: 20px; margin: 4px 0 18px; }
 
       #paintRow { width: 220px; margin-bottom: 14px; }
       #paintLabel {
@@ -144,17 +211,6 @@
         background: #1a1a1a; color: #eee; border: 1px solid #3a3a3a;
       }
       #nicknameInput:focus { outline: none; border-color: #888; }
-      #playButton {
-        padding: 10px 28px; font: 14px "FreckleFace", monospace; background: #333; color: #fff;
-        border: 1px solid #888; cursor: pointer;
-      }
-      #playButton:disabled { opacity: 0.4; cursor: default; }
-      #menuButtons { display: flex; gap: 10px; }
-      #settingsButton {
-        padding: 10px 20px; font: 14px "FreckleFace", monospace; background: #222; color: #ccc;
-        border: 1px solid #555; cursor: pointer;
-      }
-
       #settings {
         position: fixed; inset: 0; background: #111;
         color: #eee; font: 14px/1.4 "FreckleFace", monospace;
@@ -237,10 +293,14 @@
       #loadingLabel {
         color: #888; font: 12px/1.4 "FreckleFace", monospace; letter-spacing: 1px; text-transform: uppercase;
       }
+      #loadingTip {
+        color: #665; font: 12px/1.4 "FreckleFace", monospace; opacity: 0.55; max-width: 320px;
+        text-align: center; min-height: 1.4em; transition: opacity 0.3s ease;
+      }
 
-      body.booting #menu, body.booting #renderCanvas { opacity: 0; }
+      body.booting #entryScreen, body.booting #renderCanvas { opacity: 0; }
       #renderCanvas { transition: opacity 0.6s ease; }
-      #menu { transition: opacity 0.6s ease; }
+      #entryScreen { transition: opacity 0.6s ease; }
 
       #sceneFade {
         position: fixed; inset: 0; background: #000; z-index: 9000;
@@ -273,22 +333,22 @@
     <div id="loadingScreen">
       <div id="loadingSpinner"></div>
       <div id="loadingBarTrack"><div id="loadingBarFill"></div></div>
-      <div id="loadingLabel">Loading <span id="loadingPercent">0%</span></div>
+      <div id="loadingLabel"><span id="loadingLabelText">Loading</span> <span id="loadingPercent">0%</span></div>
+      <div id="loadingTip"></div>
     </div>
 
-    <div id="menu">
+    <div id="entryScreen" class="screenPanel">
       <div id="logoMark" role="img" aria-label="Go-Goated Racing"></div>
-      <ul id="mapList"></ul>
-      <div id="carListLabel">Car</div>
-      <div id="carList"></div>
-      <div id="paintRow">
-        <div id="paintLabel"><span>Paint</span><span id="paintHueValue">210°</span></div>
-        <input type="range" id="colorSlider" min="0" max="359" value="210" />
+      <button id="entryPlayButton">Play</button>
+      <div id="entryMenuButtons">
+        <button id="settingsButton">Settings</button>
       </div>
-      <div id="plateRow">
-        <div id="plateLabel">Plate</div>
-        <input type="text" id="plateInput" maxlength="8" value="STUNT" spellcheck="false" />
-      </div>
+    </div>
+
+    <div id="mapSelect" class="screenPanel hidden">
+      <div class="selectTitle">Select Track</div>
+      <div class="filmstrip" id="mapList"></div>
+      <div class="selectFlavor" id="mapFlavorText"></div>
       <div id="envToggles">
         <div class="envRow">
           <span>Time</span>
@@ -317,9 +377,28 @@
           <input type="text" id="nicknameInput" maxlength="16" placeholder="Player" spellcheck="false" />
         </div>
       </div>
-      <div id="menuButtons">
-        <button id="playButton" disabled>Play</button>
-        <button id="settingsButton">Settings</button>
+      <div class="selectFooter">
+        <button class="selectBackButton" id="mapSelectBack">Back</button>
+        <button class="selectNextButton" id="mapSelectNext" disabled>Next</button>
+      </div>
+    </div>
+
+    <div id="carSelect" class="screenPanel hidden">
+      <div class="selectTitle">Select Car</div>
+      <div class="filmstrip" id="carList"></div>
+      <div class="customizeRow">
+        <div id="paintRow">
+          <div id="paintLabel"><span>Paint</span><span id="paintHueValue">210°</span></div>
+          <input type="range" id="colorSlider" min="0" max="359" value="210" />
+        </div>
+        <div id="plateRow">
+          <div id="plateLabel">Plate</div>
+          <input type="text" id="plateInput" maxlength="8" value="STUNT" spellcheck="false" />
+        </div>
+      </div>
+      <div class="selectFooter">
+        <button class="selectBackButton" id="carSelectBack">Back</button>
+        <button class="selectNextButton" id="playButton">Play</button>
       </div>
     </div>
 

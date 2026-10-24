@@ -4,6 +4,11 @@ const LOWPOLY_MODEL_URL = `${import.meta.env.BASE_URL}models/ps1-car.glb`;
 const HELLCAT_MODEL_URL = `${import.meta.env.BASE_URL}models/hellcat.glb`;
 const PORSCHE_MODEL_URL = `${import.meta.env.BASE_URL}models/porsche-911.glb`;
 
+const THUMB_BASE = `${import.meta.env.BASE_URL}thumbnails/cars`;
+// Stock/Sport/GT share the identical Nissan model (only their stats differ), so they
+// share one baked thumbnail too rather than baking three visually-identical images.
+const NISSAN_THUMB = `${THUMB_BASE}/nissan.webp`;
+
 /** Which sound asset set (see src/audio.ts's AUDIO_PROFILES) a car's engine uses. */
 export type AudioProfileId = "hellcat" | "nissan350" | "generic";
 
@@ -48,9 +53,9 @@ export interface CarSpec {
  * away some power) so the roster has an actual muscle-vs-sports-car choice beyond paint.
  */
 export const CARS: CarSpec[] = [
-  { id: "stock", name: "Stock", enginePowerMultiplier: 1, gripMultiplier: 1, audioProfile: "nissan350" },
-  { id: "sport", name: "Sport", enginePowerMultiplier: 1.15, gripMultiplier: 0.9, audioProfile: "nissan350" },
-  { id: "gt", name: "GT", enginePowerMultiplier: 0.9, gripMultiplier: 1.15, audioProfile: "nissan350" },
+  { id: "stock", name: "Stock", enginePowerMultiplier: 1, gripMultiplier: 1, audioProfile: "nissan350", thumbnailUrl: NISSAN_THUMB },
+  { id: "sport", name: "Sport", enginePowerMultiplier: 1.15, gripMultiplier: 0.9, audioProfile: "nissan350", thumbnailUrl: NISSAN_THUMB },
+  { id: "gt", name: "GT", enginePowerMultiplier: 0.9, gripMultiplier: 1.15, audioProfile: "nissan350", thumbnailUrl: NISSAN_THUMB },
   {
     id: "lowpoly",
     name: "Lowpoly",
@@ -58,6 +63,7 @@ export const CARS: CarSpec[] = [
     gripMultiplier: 0.8,
     modelUrl: LOWPOLY_MODEL_URL,
     audioProfile: "generic",
+    thumbnailUrl: `${THUMB_BASE}/lowpoly.webp`,
   },
   {
     id: "hellcat",
@@ -68,6 +74,7 @@ export const CARS: CarSpec[] = [
     audioProfile: "hellcat",
     plateMode: "quad",
     plateQuad: { offset: [0, -0.05, -2.1], rotationY: Math.PI, width: 0.32, height: 0.16 },
+    thumbnailUrl: `${THUMB_BASE}/hellcat.webp`,
   },
   {
     id: "turbo",
@@ -76,6 +83,7 @@ export const CARS: CarSpec[] = [
     gripMultiplier: 1.2,
     modelUrl: PORSCHE_MODEL_URL,
     audioProfile: "generic",
+    thumbnailUrl: `${THUMB_BASE}/turbo.webp`,
   },
 ];
 

@@ -2,7 +2,8 @@ import * as BABYLON from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import { InputManager, describeKeyCode } from "./input";
 import { Game } from "./game";
-import { MenuUI } from "./menu";
+import { EntryScreen } from "./menu";
+import { MapSelectScreen, CarSelectScreen } from "./screens";
 import { EngineAudio, playUiClick } from "./audio";
 import {
   loadSettings,
@@ -25,9 +26,39 @@ async function main() {
   const loadingScreen = document.getElementById("loadingScreen")!;
   const loadingBarFill = document.getElementById("loadingBarFill")!;
   const loadingPercent = document.getElementById("loadingPercent")!;
-  const setLoadingProgress = (pct: number) => {
+  const loadingLabelText = document.getElementById("loadingLabelText")!;
+  const setLoadingProgress = (pct: number, label?: string) => {
     loadingBarFill.style.width = `${pct}%`;
     loadingPercent.textContent = `${Math.round(pct)}%`;
+    if (label) loadingLabelText.textContent = label;
+  };
+
+  // Rotating flavor line under the loading bar — a real racing-game loading-screen
+  // convention (tips/lore cycling during the wait) rather than a bare silent bar.
+  const loadingTipEl = document.getElementById("loadingTip")!;
+  const LOADING_TIPS = [
+    "Tip: hold Space in the air to steer into a flip.",
+    "Tip: press H to toggle your headlights.",
+    "Tip: press C to cycle Chase / Cockpit / Cinematic cameras.",
+    "Tip: the half-pipe rewards commitment, not caution.",
+    "Tip: R resets you back to the track if you land wrong.",
+  ];
+  let tipInterval: ReturnType<typeof setInterval> | null = null;
+  const startTipRotation = () => {
+    let i = Math.floor(Math.random() * LOADING_TIPS.length);
+    loadingTipEl.textContent = LOADING_TIPS[i];
+    tipInterval = setInterval(() => {
+      i = (i + 1) % LOADING_TIPS.length;
+      loadingTipEl.style.opacity = "0";
+      setTimeout(() => {
+        loadingTipEl.textContent = LOADING_TIPS[i];
+        loadingTipEl.style.opacity = "0.55";
+      }, 300);
+    }, 2200);
+  };
+  const stopTipRotation = () => {
+    if (tipInterval) clearInterval(tipInterval);
+    tipInterval = null;
   };
 
   const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
@@ -200,7 +231,9 @@ async function main() {
     backButton.classList.add("hidden");
     clearChat();
     void menuScene.show();
-    menu.show();
+    mapSelect.hide();
+    carSelect.hide();
+    entryScreen.show();
     fadeFromBlack();
   };
 
@@ -212,10 +245,53 @@ async function main() {
 
   const SIGNALING_URL = "wss://stuntrush-signal.ss1734531235.workers.dev";
 
-  const menu = new MenuUI(async (mapId, carId) => {
+  // --- Screen flow: Entry -> Map Select -> Car Select -> (real) Loading -> Gameplay.
+  // Each step reuses the sceneFade primitive between it and the next/previous one;
+  // the live MenuScene turntable keeps running underneath all three menu screens. ---
+  const entryScreen = new EntryScreen(
+    () => {
+      entryScreen.hide();
+      mapSelect.show("forward");
+    },
+    () => {
+      entryScreen.hide();
+      settingsPanel.classList.remove("hidden");
+    }
+  );
+  const mapSelect = new MapSelectScreen();
+  const carSelect = new CarSelectScreen();
+  carSelect.setCar(settings.carId);
+
+  let selectedMapId: string | null = null;
+
+  mapSelect.onNext = (mapId) => {
+    selectedMapId = mapId;
+    mapSelect.hide();
+    carSelect.show("forward");
+  };
+  mapSelect.onBack = () => {
+    mapSelect.hide();
+    entryScreen.show();
+  };
+  carSelect.onBack = () => {
+    carSelect.hide();
+    mapSelect.show("back");
+  };
+  carSelect.onCarChanged = (carId) => {
+    settings.carId = carId;
+    saveSettings(settings);
+    menuScene.setCarModel(getCarSpec(carId));
+  };
+
+  const startLoadingFlow = async (mapId: string, carId: string) => {
     await fadeToBlack();
-    menu.hide();
+    carSelect.hide();
     menuScene.hide();
+    setLoadingProgress(0, "Loading");
+    loadingScreen.classList.remove("hidden");
+    fadeFromBlack();
+    startTipRotation();
+
     if (!audio) {
       audio = new EngineAudio();
       audio.setVolumes(settings.masterVolume, settings.engineVolume);
@@ -225,6 +301,7 @@ async function main() {
     environment.apply({ timeOfDay: settings.timeOfDay, weather: settings.weather });
     peerCountEl.classList.add("hidden");
     peerCountEl.textContent = "";
+
     await game.load(
       mapId,
       environment.gripMultiplier,
@@ -232,18 +309,24 @@ async function main() {
       carId,
       hueToHex(settings.bodyColorHue),
       settings.plateText,
-      settings.nickname
+      settings.nickname,
+      setLoadingProgress
     );
+
+    stopTipRotation();
+    await fadeToBlack();
+    loadingScreen.classList.add("hidden");
     hud.classList.remove("hidden");
     backButton.classList.remove("hidden");
     fadeFromBlack();
-  });
-  menu.setCar(settings.carId);
-  menu.onCarChanged = (carId) => {
-    settings.carId = carId;
-    saveSettings(settings);
-    menuScene.setCarModel(getCarSpec(carId));
   };
+
+  const playButton = document.getElementById("playButton") as HTMLButtonElement;
+  playButton.addEventListener("click", () => {
+    void playUiClick();
+    if (!selectedMapId) return;
+    void startLoadingFlow(selectedMapId, carSelect.getSelectedCarId());
+  });
 
   // --- Paint color slider: a single hue drives both the preview and the live car. ---
   const colorSlider = document.getElementById("colorSlider") as HTMLInputElement;
@@ -275,10 +358,10 @@ async function main() {
     saveSettings(settings);
   });
 
-  setLoadingProgress(55);
+  setLoadingProgress(55, "Loading");
   await menuScene.show();
-  menu.show();
-  setLoadingProgress(100);
+  entryScreen.show();
+  setLoadingProgress(100, "Loading");
 
   document.body.classList.remove("booting");
   loadingScreen.classList.add("hidden");
@@ -303,7 +386,6 @@ async function main() {
 
   // --- Settings panel ---
   const settingsPanel = document.getElementById("settings")!;
-  const settingsButton = document.getElementById("settingsButton")!;
   const settingsBack = document.getElementById("settingsBack")!;
   const presetButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>("#presetRow button")
@@ -453,17 +535,12 @@ async function main() {
     refreshBindButtons();
   });
 
-  settingsButton.addEventListener("click", () => {
-    void playUiClick();
-    menu.hide();
-    settingsPanel.classList.remove("hidden");
-  });
   settingsBack.addEventListener("click", () => {
     void playUiClick();
     stopListening();
     refreshBindButtons();
     settingsPanel.classList.add("hidden");
-    menu.show();
+    entryScreen.show();
   });
 
   scene.onBeforeRenderObservable.add(() => {

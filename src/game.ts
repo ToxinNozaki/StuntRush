@@ -80,13 +80,16 @@ export class Game {
     carId?: string,
     bodyColorHex?: string,
     plateText?: string,
-    nickname?: string
+    nickname?: string,
+    onProgress?: (pct: number, label: string) => void
   ): Promise<void> {
     if (this.isLoaded) this.dispose();
+    const report = (pct: number, label: string) => onProgress?.(pct, label);
 
     this.cameraMode = "chase";
     this.localNickname = sanitizeNickname(nickname ?? "") || DEFAULT_NICKNAME_FALLBACK;
     this.peerNicknames.clear();
+    report(5, "Preparing track");
     this.world = buildWorld(this.scene);
 
     const spawn = new BABYLON.Vector3(0, 2, 0);
@@ -96,11 +99,15 @@ export class Game {
     if (bodyColorHex) vehicle.setBodyColor(bodyColorHex);
     if (plateText) vehicle.setPlateText(plateText);
     this.vehicle = vehicle;
-    void vehicle.attachVisual().then(() => this.onCarVisualReady?.(vehicle.visualMeshes));
+    report(30, "Loading vehicle");
+    await vehicle.attachVisual();
+    this.onCarVisualReady?.(vehicle.visualMeshes);
 
+    report(70, "Spawning traffic");
     this.traffic = new TrafficController(this.scene);
-    void this.traffic.spawn();
+    await this.traffic.spawn();
 
+    report(90, "Finalizing");
     if (signalingUrl) this.startMultiplayer(signalingUrl);
 
     const camera = new BABYLON.UniversalCamera("chaseCam", new BABYLON.Vector3(0, 4, -8), this.scene);
@@ -177,6 +184,7 @@ export class Game {
         });
       }
     });
+    report(100, "Ready");
   }
 
   get cameraModeValue(): CameraMode {
