@@ -1,4 +1,6 @@
 const LOWPOLY_MODEL_URL = `${import.meta.env.BASE_URL}models/ps1-car.glb`;
+const HELLCAT_MODEL_URL = `${import.meta.env.BASE_URL}models/hellcat.glb`;
+const PORSCHE_MODEL_URL = `${import.meta.env.BASE_URL}models/porsche-911.glb`;
 
 export interface CarSpec {
   id: string;
@@ -18,9 +20,11 @@ export interface CarSpec {
  * one chassis with different paint and stats" shortcut for v1 — a real stat trade-off
  * (power vs. grip), not just a cosmetic pick. Paint color is a fully separate, free
  * choice (see hueToHex below) — picking a performance profile here doesn't lock in a
- * color. The fourth entry, added post-v1, is a genuinely different car rather than a
- * stat variant — a small stylized low-poly model from Ideas.txt's "novelty cars" idea
- * (not Lightning McQueen — that one's a real Pixar character, skipped on purpose).
+ * color. The entries after "GT", added post-v1, are genuinely different cars rather
+ * than stat variants on the Nissan chassis — Lowpoly from Ideas.txt's "novelty cars"
+ * idea (not Lightning McQueen — that one's a real Pixar character, skipped on purpose),
+ * then a Hellcat (power pick, trades away some grip) and a 911 Turbo (grip pick, trades
+ * away some power) so the roster has an actual muscle-vs-sports-car choice beyond paint.
  */
 export const CARS: CarSpec[] = [
   { id: "stock", name: "Stock", enginePowerMultiplier: 1, gripMultiplier: 1 },
@@ -32,6 +36,20 @@ export const CARS: CarSpec[] = [
     enginePowerMultiplier: 1.05,
     gripMultiplier: 0.8,
     modelUrl: LOWPOLY_MODEL_URL,
+  },
+  {
+    id: "hellcat",
+    name: "Hellcat",
+    enginePowerMultiplier: 1.3,
+    gripMultiplier: 0.85,
+    modelUrl: HELLCAT_MODEL_URL,
+  },
+  {
+    id: "turbo",
+    name: "Turbo",
+    enginePowerMultiplier: 1.1,
+    gripMultiplier: 1.2,
+    modelUrl: PORSCHE_MODEL_URL,
   },
 ];
 
