@@ -9,6 +9,44 @@ export interface BuiltWorld {
 const WATER_TOWER_URL = `${import.meta.env.BASE_URL}models/water-tower.glb`;
 const ELECTRICAL_BOXES_URL = `${import.meta.env.BASE_URL}models/electrical-boxes.glb`;
 
+/** Real Poly Haven PBR sets (asphalt/concrete/factory-wall), downscaled to 1024px and
+ *  with their normal maps converted from the source EXRs to JPEG offline — the raw
+ *  4K/EXR originals stay in the local asset dump only, per the project's asset policy.
+ *  Replaces the single flat StandardMaterial every world.ts piece used to share, which
+ *  is why a real PBR car used to look pasted onto a flat gray plane: nothing in the
+ *  world itself had any texture or roughness response to the scene's IBL. */
+const TEXTURES_BASE = `${import.meta.env.BASE_URL}textures`;
+
+function loadPBRMaterial(
+  scene: BABYLON.Scene,
+  name: string,
+  folder: string,
+  uScale: number,
+  vScale: number
+): BABYLON.PBRMaterial {
+  const material = new BABYLON.PBRMaterial(name, scene);
+  const diffuse = new BABYLON.Texture(`${TEXTURES_BASE}/${folder}/diffuse.jpg`, scene);
+  const roughness = new BABYLON.Texture(`${TEXTURES_BASE}/${folder}/roughness.jpg`, scene);
+  const normal = new BABYLON.Texture(`${TEXTURES_BASE}/${folder}/normal.jpg`, scene);
+  for (const tex of [diffuse, roughness, normal]) {
+    tex.uScale = uScale;
+    tex.vScale = vScale;
+  }
+  material.albedoTexture = diffuse;
+  // Separate grayscale roughness map (not a packed glTF metallic-roughness texture) —
+  // Babylon's metallic/roughness workflow still wants it on `metallicTexture` with the
+  // green-channel flag on; since the map is genuinely grayscale (R=G=B), that channel
+  // pick doesn't matter. Metal is forced to 0 regardless of the texture's blue channel —
+  // none of these three surfaces (asphalt/concrete/painted wall) should read as metal.
+  material.metallicTexture = roughness;
+  material.useRoughnessFromMetallicTextureGreen = true;
+  material.useMetallnessFromMetallicTextureBlue = false;
+  material.metallic = 0;
+  material.roughness = 1;
+  material.bumpTexture = normal;
+  return material;
+}
+
 /**
  * Builds the free-roam test world: flat ground, two ramp-into-loop-into-runway
  * chains back to back, and a half-pipe stunt piece off to the side. Static
@@ -20,11 +58,16 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
   const root = new BABYLON.TransformNode("worldRoot", scene);
   const aggregates: BABYLON.PhysicsAggregate[] = [];
 
-  const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
-  groundMat.diffuseColor = new BABYLON.Color3(0.35, 0.35, 0.37);
+  // One tiling scale for the huge open ground plane, a tighter one for the much
+  // smaller ramp/runway/loop/turn pieces so neither looks blurry-stretched nor
+  // over-busy relative to its own size — see DESIGN_DOC.md for how these were picked.
+  const trackMatGround = loadPBRMaterial(scene, "trackMatGround", "asphalt", 50, 50);
+  const trackMat = loadPBRMaterial(scene, "trackMat", "asphalt", 4, 6);
+  const structureMat = loadPBRMaterial(scene, "structureMat", "concrete", 5, 3);
+  const boundaryMat = loadPBRMaterial(scene, "boundaryMat", "factory-wall", 6, 2);
 
   const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 800, height: 800 }, scene);
-  ground.material = groundMat;
+  ground.material = trackMatGround;
   ground.parent = root;
   ground.receiveShadows = true;
   aggregates.push(
@@ -56,7 +99,7 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
 
   // --- Reusable ramp: one base mesh, instanced everywhere a ramp is needed. ---
   const rampBase = BABYLON.MeshBuilder.CreateBox("ramp", { width: 8, height: 0.5, depth: 20 }, scene);
-  rampBase.material = groundMat;
+  rampBase.material = trackMat;
   rampBase.parent = root;
   rampBase.receiveShadows = true;
 
@@ -72,7 +115,7 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
 
   // --- Reusable runway segment: one base mesh, instanced for each straight. ---
   const runwayBase = BABYLON.MeshBuilder.CreateBox("runway", { width: 10, height: 0.5, depth: 60 }, scene);
-  runwayBase.material = groundMat;
+  runwayBase.material = trackMat;
   runwayBase.parent = root;
   runwayBase.receiveShadows = true;
 
@@ -95,7 +138,7 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
       { diameter: 26, thickness: 2.6, tessellation: 48 },
       scene
     );
-    loop.material = groundMat;
+    loop.material = trackMat;
     loop.parent = root;
     loop.rotation.z = Math.PI / 2;
     loop.position = position;
@@ -116,7 +159,7 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
   // out — a distinct "jump" stunt, separate in character from the loop ramps
   // (those carry you up into a loop; this one's about airtime and distance). ---
   const kickerRamp = BABYLON.MeshBuilder.CreateBox("kickerRamp", { width: 9, height: 0.6, depth: 16 }, scene);
-  kickerRamp.material = groundMat;
+  kickerRamp.material = trackMat;
   kickerRamp.parent = root;
   kickerRamp.position = new BABYLON.Vector3(-30, 2.2, 230);
   kickerRamp.rotation.x = -Math.PI / 6; // steeper than the loop ramps — built for distance, not height
@@ -124,7 +167,7 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
   addBoxStatic(kickerRamp);
 
   const landingPad = BABYLON.MeshBuilder.CreateBox("landingPad", { width: 14, height: 0.5, depth: 24 }, scene);
-  landingPad.material = groundMat;
+  landingPad.material = trackMat;
   landingPad.parent = root;
   landingPad.position = new BABYLON.Vector3(-30, 0.25, 290);
   landingPad.receiveShadows = true;
@@ -140,7 +183,7 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
     { width: 11, height: 0.6, depth: 13 },
     scene
   );
-  turnSegBase.material = groundMat;
+  turnSegBase.material = trackMat;
   turnSegBase.parent = root;
   turnSegBase.receiveShadows = true;
 
@@ -233,7 +276,7 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
   // it; this is what actually makes the map read as a defined island instead of
   // an endless gray plane. ---
   const wallBase = BABYLON.MeshBuilder.CreateBox("boundaryWall", { width: 40, height: 7, depth: 2 }, scene);
-  wallBase.material = groundMat;
+  wallBase.material = boundaryMat;
   wallBase.parent = root;
   wallBase.receiveShadows = true;
 
@@ -284,7 +327,7 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
     { width: 18, height: 10, depth: 40 },
     scene
   );
-  halfPipeWallBase.material = groundMat;
+  halfPipeWallBase.material = structureMat;
   halfPipeWallBase.parent = root;
   halfPipeWallBase.receiveShadows = true;
 
@@ -307,7 +350,7 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
     { width: 12, height: 0.5, depth: 40 },
     scene
   );
-  halfPipeFloor.material = groundMat;
+  halfPipeFloor.material = structureMat;
   halfPipeFloor.parent = root;
   halfPipeFloor.position = halfPipeCenter.clone();
   halfPipeFloor.receiveShadows = true;
@@ -350,7 +393,10 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
       isDisposed = true;
       for (const aggregate of aggregates) aggregate.dispose();
       root.dispose(false, true);
-      groundMat.dispose();
+      trackMatGround.dispose();
+      trackMat.dispose();
+      structureMat.dispose();
+      boundaryMat.dispose();
     },
   };
 }
