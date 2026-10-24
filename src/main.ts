@@ -80,13 +80,25 @@ async function main() {
 
   // Image-based lighting: gives every PBR car material (clearcoat paint
   // especially) something real to reflect instead of flat, lightless panels.
-  // Babylon's official default studio environment — no custom HDRI asset to
-  // source/host ourselves, at the cost of one external fetch from Babylon's own
-  // CDN (assets.babylonjs.com). If that's ever blocked on a restrictive network,
-  // PBR materials just fall back to looking flat again — not a hard failure.
-  scene.environmentTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
-    "https://assets.babylonjs.com/environments/environmentSpecular.env",
-    scene
+  // Self-hosted from the asset dump's Poly Haven CC0 HDRI (kiara_8_sunset,
+  // converted offline from the raw 4K EXR to a 1024x512 Radiance .hdr with a
+  // Python OpenEXR + cv2 script, downscaled since this only ever feeds blurred
+  // specular/irradiance reflections, never shown directly as a skybox — see
+  // DESIGN_DOC.md's asset-dump notes). Originally used Babylon's own CDN-hosted
+  // default studio environment instead; replaced 2026-10-24 to remove that
+  // external fetch (assets.babylonjs.com), a real risk on a restrictive school
+  // network per the design doc's own risk table. `HDRCubeTexture` PMREM-filters
+  // the equirectangular .hdr into a prefiltered cubemap at runtime in the
+  // browser — unlike Babylon's baked `.env` format, it needs no offline IBL
+  // bake tool, which is what made self-hosting impractical before now.
+  scene.environmentTexture = new BABYLON.HDRCubeTexture(
+    `${import.meta.env.BASE_URL}hdri/kiara-sunset.hdr`,
+    scene,
+    256,
+    false,
+    true,
+    false,
+    true
   );
   scene.environmentIntensity = 0.7;
 
