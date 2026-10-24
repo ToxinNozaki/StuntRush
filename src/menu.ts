@@ -1,5 +1,6 @@
 import { MAPS } from "./maps";
 import { CARS, DEFAULT_CAR_ID } from "./cars";
+import { playUiClick } from "./audio";
 
 /** Plain DOM menu overlay: pick a map and car, hit Play. No game content exists until Play is clicked. */
 export class MenuUI {
@@ -22,7 +23,10 @@ export class MenuUI {
       const li = document.createElement("li");
       const button = document.createElement("button");
       button.textContent = map.name;
-      button.addEventListener("click", () => this.selectMap(map.id));
+      button.addEventListener("click", () => {
+        void playUiClick();
+        this.selectMap(map.id);
+      });
       li.appendChild(button);
       this.listEl.appendChild(li);
     }
@@ -31,12 +35,16 @@ export class MenuUI {
       const button = document.createElement("button");
       button.textContent = car.name;
       button.dataset.carId = car.id;
-      button.addEventListener("click", () => this.selectCar(car.id));
+      button.addEventListener("click", () => {
+        void playUiClick();
+        this.selectCar(car.id);
+      });
       this.carListEl.appendChild(button);
     }
     this.selectCar(this.selectedCarId);
 
     this.playButton.addEventListener("click", () => {
+      void playUiClick();
       if (this.selectedMapId) onPlay(this.selectedMapId, this.selectedCarId);
     });
   }

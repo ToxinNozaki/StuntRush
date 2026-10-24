@@ -3,7 +3,7 @@ import HavokPhysics from "@babylonjs/havok";
 import { InputManager, describeKeyCode } from "./input";
 import { Game } from "./game";
 import { MenuUI } from "./menu";
-import { EngineAudio } from "./audio";
+import { EngineAudio, playUiClick } from "./audio";
 import {
   loadSettings,
   saveSettings,
@@ -221,6 +221,7 @@ async function main() {
       audio.setVolumes(settings.masterVolume, settings.engineVolume);
     }
     await audio.resume();
+    await audio.setProfile(getCarSpec(carId).audioProfile);
     environment.apply({ timeOfDay: settings.timeOfDay, weather: settings.weather });
     peerCountEl.classList.add("hidden");
     peerCountEl.textContent = "";
@@ -453,10 +454,12 @@ async function main() {
   });
 
   settingsButton.addEventListener("click", () => {
+    void playUiClick();
     menu.hide();
     settingsPanel.classList.remove("hidden");
   });
   settingsBack.addEventListener("click", () => {
+    void playUiClick();
     stopListening();
     refreshBindButtons();
     settingsPanel.classList.add("hidden");
