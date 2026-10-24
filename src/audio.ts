@@ -47,6 +47,12 @@ export interface AudioProfile {
 
 const BASE = import.meta.env.BASE_URL;
 
+/** Fake-RPM width of the crossfade ramp at each band's edges (see `update()`'s
+ *  per-band weight calc) — fixed rather than proportional to a band's own width,
+ *  chosen to roughly match how far adjacent bands in AUDIO_PROFILES actually
+ *  overlap (0.08-0.15 across the hellcat/nissan350 ladders). */
+const BAND_FADE_WIDTH = 0.09;
+
 export const AUDIO_PROFILES: Record<string, AudioProfile> = {
   hellcat: {
     id: "hellcat",
@@ -264,12 +270,24 @@ export class EngineAudio {
     this.idleGain?.gain.setTargetAtTime(idleTarget, t, 0.12);
 
     for (const band of this.bands) {
-      const inRange = fakeRpm >= band.rangeStart && fakeRpm <= band.rangeEnd;
+      // Plateau (not a triangle): full volume across the whole middle of a band's
+      // range, ramping only in the short zone at each edge where it actually
+      // overlaps a neighboring band. The old code peaked at exactly the band's
+      // center and fell to silence at both edges — meaning a band was only ever
+      // briefly close to full volume, for roughly a band-width's worth of fake-RPM
+      // around that single point. During a normal full-throttle run that's well
+      // under a second per band, which read as flickering between disconnected
+      // clips rather than a sustained note held "for as long as you're in that
+      // gear" (reported bug). `BAND_FADE_WIDTH` is a fixed fake-RPM width rather
+      // than a fraction of the band's own width, so the plateau still dominates
+      // even on the narrowest bands — chosen to roughly match how far adjacent
+      // bands actually overlap (see AUDIO_PROFILES above), not a guess.
+      const fade = Math.min(BAND_FADE_WIDTH, (band.rangeEnd - band.rangeStart) / 2 || 1);
       let weight = 0;
-      if (inRange) {
-        const mid = (band.rangeStart + band.rangeEnd) / 2;
-        const half = (band.rangeEnd - band.rangeStart) / 2 || 1;
-        weight = 1 - Math.abs(fakeRpm - mid) / half; // 1 at band center, 0 at its edges
+      if (fakeRpm >= band.rangeStart && fakeRpm <= band.rangeEnd) {
+        if (fakeRpm < band.rangeStart + fade) weight = (fakeRpm - band.rangeStart) / fade;
+        else if (fakeRpm > band.rangeEnd - fade) weight = (band.rangeEnd - fakeRpm) / fade;
+        else weight = 1;
       }
       band.gain.gain.setTargetAtTime(weight * trim, t, 0.12);
       if (band.source) {
