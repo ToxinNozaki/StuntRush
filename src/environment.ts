@@ -1,4 +1,8 @@
 import * as BABYLON from "@babylonjs/core";
+import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
+import "@babylonjs/loaders/glTF";
+
+const PLANE_MODEL_URL = `${import.meta.env.BASE_URL}models/plane.glb`;
 
 export type TimeOfDay = "day" | "night";
 export type Weather = "clear" | "cloudy" | "snow";
@@ -37,20 +41,19 @@ export class EnvironmentController {
   gripMultiplier = 1;
 
   // Distant background planes — purely atmospheric (no collision, no gameplay
-  // effect), one in flight at a time, respawning on a random delay. My own addition
-  // on top of the "flying planes in the sky" backlog idea: nav/strobe lights so
-  // there's something to notice even when the plane itself is a tiny silhouette.
+  // effect), one in flight at a time, respawning on a random delay. Uses a real
+  // low-poly 737 model (public/models/plane.glb, from the asset dump) loaded once
+  // and cloned per flight — cheaper than re-importing the glb every 15-45 seconds.
   private planeActive = false;
+  private planeTemplate: BABYLON.TransformNode | null = null;
+  private planeTemplateLoadPromise: Promise<BABYLON.TransformNode> | null = null;
+  private planeSpawning = false;
   private planeRoot: BABYLON.TransformNode | null = null;
   private planeProgress = 0;
   private planeDurationSec = 1;
   private planeStart = BABYLON.Vector3.Zero();
   private planeEnd = BABYLON.Vector3.Zero();
   private planeWaitSec = 0;
-  private readonly planeBodyMaterial: BABYLON.StandardMaterial;
-  private readonly planeRedLightMaterial: BABYLON.StandardMaterial;
-  private readonly planeGreenLightMaterial: BABYLON.StandardMaterial;
-  private readonly planeWhiteLightMaterial: BABYLON.StandardMaterial;
   private planeUpdateObserver: BABYLON.Observer<BABYLON.Scene> | null = null;
 
   constructor(scene: BABYLON.Scene, hemi: BABYLON.HemisphericLight, sun: BABYLON.DirectionalLight) {
@@ -86,19 +89,6 @@ export class EnvironmentController {
       tex.uOffset += this.scene.getEngine().getDeltaTime() * 0.000008;
       tex.vOffset += this.scene.getEngine().getDeltaTime() * 0.000004;
     });
-
-    this.planeBodyMaterial = new BABYLON.StandardMaterial("planeBodyMat", scene);
-    this.planeBodyMaterial.disableLighting = true;
-    this.planeBodyMaterial.emissiveColor = new BABYLON.Color3(0.82, 0.84, 0.88);
-    this.planeRedLightMaterial = new BABYLON.StandardMaterial("planeRedLightMat", scene);
-    this.planeRedLightMaterial.disableLighting = true;
-    this.planeRedLightMaterial.emissiveColor = new BABYLON.Color3(1, 0.1, 0.1);
-    this.planeGreenLightMaterial = new BABYLON.StandardMaterial("planeGreenLightMat", scene);
-    this.planeGreenLightMaterial.disableLighting = true;
-    this.planeGreenLightMaterial.emissiveColor = new BABYLON.Color3(0.1, 1, 0.2);
-    this.planeWhiteLightMaterial = new BABYLON.StandardMaterial("planeWhiteLightMat", scene);
-    this.planeWhiteLightMaterial.disableLighting = true;
-    this.planeWhiteLightMaterial.emissiveColor = new BABYLON.Color3(1, 1, 1);
 
     this.planeWaitSec = 8 + Math.random() * 20;
     this.planeUpdateObserver = scene.onBeforeRenderObservable.add(() => this.updatePlane());
@@ -282,8 +272,12 @@ export class EnvironmentController {
     const dt = this.scene.getEngine().getDeltaTime() / 1000;
 
     if (!this.planeRoot) {
+      if (this.planeSpawning) return; // template load already in flight
       this.planeWaitSec -= dt;
-      if (this.planeWaitSec <= 0) this.spawnPlane();
+      if (this.planeWaitSec <= 0) {
+        this.planeSpawning = true;
+        void this.spawnPlane();
+      }
       return;
     }
 
@@ -297,7 +291,37 @@ export class EnvironmentController {
     this.planeRoot.position = BABYLON.Vector3.Lerp(this.planeStart, this.planeEnd, this.planeProgress);
   }
 
-  private spawnPlane() {
+  /** Loads the plane model once and caches it, disabled, purely as a template to
+   *  clone — repeated flights just clone + dispose, never re-import the glb. */
+  private loadPlaneTemplate(): Promise<BABYLON.TransformNode> {
+    if (this.planeTemplate) return Promise.resolve(this.planeTemplate);
+    if (!this.planeTemplateLoadPromise) {
+      this.planeTemplateLoadPromise = (async () => {
+        const result = await ImportMeshAsync(PLANE_MODEL_URL, this.scene);
+        const root = new BABYLON.TransformNode("planeTemplate", this.scene);
+        for (const mesh of result.meshes) {
+          if (mesh.parent === null) mesh.parent = root;
+        }
+        const bounds = root.getHierarchyBoundingVectors(true);
+        const size = bounds.max.subtract(bounds.min);
+        // ~16 units nose-to-tail — small enough to read as "distant" at the
+        // altitude it flies, big enough to still be a recognizable silhouette.
+        const scale = 16 / (Math.max(size.x, size.z) || 1);
+        root.scaling.setAll(scale);
+        root.setEnabled(false); // the template itself never renders directly
+        for (const mesh of root.getChildMeshes()) mesh.isPickable = false;
+        this.planeTemplate = root;
+        return root;
+      })();
+    }
+    return this.planeTemplateLoadPromise;
+  }
+
+  private async spawnPlane() {
+    const template = await this.loadPlaneTemplate();
+    this.planeSpawning = false;
+    if (!this.planeActive) return; // left gameplay while the model was loading
+
     const altitude = 230 + Math.random() * 50; // comfortably above the cloud layer (y=180)
     const span = 320;
     const z = (Math.random() * 2 - 1) * 180;
@@ -311,74 +335,22 @@ export class EnvironmentController {
     this.planeDurationSec = 40 + Math.random() * 20;
     this.planeProgress = 0;
 
-    const root = this.buildPlaneMesh();
+    const root = template.clone("plane", null) as BABYLON.TransformNode;
+    root.setEnabled(true);
     root.position.copyFrom(this.planeStart);
     const forward = this.planeEnd.subtract(this.planeStart).normalize();
     root.rotation.y = Math.atan2(forward.x, forward.z);
     this.planeRoot = root;
   }
 
-  private buildPlaneMesh(): BABYLON.TransformNode {
-    const root = new BABYLON.TransformNode("plane", this.scene);
-
-    const fuselage = BABYLON.MeshBuilder.CreateCylinder(
-      "planeFuselage",
-      { height: 7, diameterTop: 0.5, diameterBottom: 0.7, tessellation: 6 },
-      this.scene
-    );
-    fuselage.rotation.x = Math.PI / 2;
-    fuselage.material = this.planeBodyMaterial;
-    fuselage.parent = root;
-
-    const wings = BABYLON.MeshBuilder.CreateBox("planeWings", { width: 9, height: 0.15, depth: 1.1 }, this.scene);
-    wings.material = this.planeBodyMaterial;
-    wings.parent = root;
-
-    const stabilizer = BABYLON.MeshBuilder.CreateBox(
-      "planeStabilizer",
-      { width: 3, height: 0.12, depth: 0.7 },
-      this.scene
-    );
-    stabilizer.position.z = -3.1;
-    stabilizer.material = this.planeBodyMaterial;
-    stabilizer.parent = root;
-
-    const tailFin = BABYLON.MeshBuilder.CreateBox("planeTailFin", { width: 0.12, height: 1.1, depth: 0.9 }, this.scene);
-    tailFin.position.set(0, 0.55, -3.1);
-    tailFin.material = this.planeBodyMaterial;
-    tailFin.parent = root;
-
-    const makeLight = (name: string, x: number, material: BABYLON.StandardMaterial) => {
-      const light = BABYLON.MeshBuilder.CreateSphere(name, { diameter: 0.28 }, this.scene);
-      light.position.set(x, 0, 0);
-      light.material = material;
-      light.isPickable = false;
-      light.parent = root;
-      return light;
-    };
-    makeLight("planeLightRed", -4.5, this.planeRedLightMaterial); // left wingtip, aviation convention
-    makeLight("planeLightGreen", 4.5, this.planeGreenLightMaterial); // right wingtip
-    const tailLight = BABYLON.MeshBuilder.CreateSphere("planeLightWhite", { diameter: 0.22 }, this.scene);
-    tailLight.position.set(0, 0.6, -3.5);
-    tailLight.material = this.planeWhiteLightMaterial;
-    tailLight.isPickable = false;
-    tailLight.parent = root;
-
-    for (const mesh of root.getChildMeshes()) mesh.isPickable = false;
-    return root;
-  }
-
   dispose() {
     if (this.cloudScrollObserver) this.scene.onBeforeRenderObservable.remove(this.cloudScrollObserver);
     if (this.planeUpdateObserver) this.scene.onBeforeRenderObservable.remove(this.planeUpdateObserver);
     this.planeRoot?.dispose(false, true);
+    this.planeTemplate?.dispose(false, true);
     this.stars?.dispose();
     this.snow?.dispose();
     this.cloudLayer.dispose();
     this.cloudMaterial.dispose();
-    this.planeBodyMaterial.dispose();
-    this.planeRedLightMaterial.dispose();
-    this.planeGreenLightMaterial.dispose();
-    this.planeWhiteLightMaterial.dispose();
   }
 }

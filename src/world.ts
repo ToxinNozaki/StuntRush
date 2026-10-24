@@ -1,8 +1,13 @@
 import * as BABYLON from "@babylonjs/core";
+import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
+import "@babylonjs/loaders/glTF";
 
 export interface BuiltWorld {
   dispose(): void;
 }
+
+const WATER_TOWER_URL = `${import.meta.env.BASE_URL}models/water-tower.glb`;
+const ELECTRICAL_BOXES_URL = `${import.meta.env.BASE_URL}models/electrical-boxes.glb`;
 
 /**
  * Builds the free-roam test world: flat ground, two ramp-into-loop-into-runway
@@ -308,8 +313,41 @@ export function buildWorld(scene: BABYLON.Scene): BuiltWorld {
   halfPipeFloor.receiveShadows = true;
   addBoxStatic(halfPipeFloor);
 
+  // --- World dressing: purely decorative background scenery just outside the
+  // boundary wall — makes the map read as part of somewhere, not an island
+  // floating in gray void. No collision (they sit past the wall the player
+  // can't reach anyway), loaded async and fire-and-forget like the player's
+  // own car model; `isDisposed` guards against a load finishing after the
+  // player's already left the map. ---
+  let isDisposed = false;
+  const loadDecoration = async (url: string, position: BABYLON.Vector3, targetSize: number, rotationY = 0) => {
+    const result = await ImportMeshAsync(url, scene);
+    if (isDisposed) {
+      for (const mesh of result.meshes) mesh.dispose();
+      return;
+    }
+    const decoRoot = new BABYLON.TransformNode("decoration", scene);
+    for (const mesh of result.meshes) {
+      if (mesh.parent === null) mesh.parent = decoRoot;
+      mesh.isPickable = false;
+    }
+    const modelBounds = decoRoot.getHierarchyBoundingVectors(true);
+    const size = modelBounds.max.subtract(modelBounds.min);
+    const scale = targetSize / (Math.max(size.x, size.z, size.y) || 1);
+    decoRoot.scaling.setAll(scale);
+    const scaledBounds = decoRoot.getHierarchyBoundingVectors(true);
+    decoRoot.position = position.subtract(new BABYLON.Vector3(0, scaledBounds.min.y, 0));
+    decoRoot.rotation.y = rotationY;
+    decoRoot.parent = root;
+  };
+
+  void loadDecoration(WATER_TOWER_URL, new BABYLON.Vector3(bounds.xMax + 35, 0, 60), 22, Math.PI / 5);
+  void loadDecoration(ELECTRICAL_BOXES_URL, new BABYLON.Vector3(bounds.xMin - 15, 0, 100), 4, Math.PI / 3);
+  void loadDecoration(ELECTRICAL_BOXES_URL, new BABYLON.Vector3(bounds.xMax + 15, 0, 260), 4, -Math.PI / 4);
+
   return {
     dispose() {
+      isDisposed = true;
       for (const aggregate of aggregates) aggregate.dispose();
       root.dispose(false, true);
       groundMat.dispose();
