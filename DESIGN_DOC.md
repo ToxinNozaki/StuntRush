@@ -10,7 +10,7 @@
 > file is the durable, always-on-disk copy that survives a chat's context
 > filling up.
 >
-> Last synced: 2026-10-24 (doc rev 50)
+> Last synced: 2026-10-24 (doc rev 51)
 >
 > **Game name: "Go-Goated Racing"** — that's the in-game branding (menu logo, page
 > title). The repo name (`StuntRush`), the npm package name (`stuntrush`), and this
@@ -160,7 +160,7 @@ All six earlier open questions are settled (multiplayer signaling as a settings 
 
 1. ~~Pedestrian/character models~~ — **done**, see the dedicated entry below.
 2. ~~Self-hosted HDRI~~ — **done**, see the dedicated entry below.
-3. **World-building kits (roads/buildings/bridges) — one piece done, rest unintegrated.** The Bridge/Highway pack is in now — see the dedicated entry below. `Road props pack` (54MB), `Flat Buildings for filler` (15MB), and `City buildings` (6.7MB) are still unsurveyed; each likely bundles many sub-objects in one file, the same way the traffic car pack did (10 cars, only 2 used) — needs the same "inspect in isolation, pick a few, dispose the rest" treatment before any of it goes in (the bridge was a single cohesive model, so didn't need this). Bigger effort, needs a scope decision on how much of the world to dress up.
+3. **World-building kits (roads/buildings/bridges) — one piece done, rest unintegrated, and meaningfully harder than the bridge was.** The Bridge/Highway pack is in now — see the dedicated entry below; it turned out simple (single cohesive model, already clean). `Flat Buildings for filler/buildings_pack_1-reduced-reduced.glb` (15MB) was surveyed next and is a different story: exported by a tool called "RigBake" into a single unlabeled "AuxScene" (no per-building node names to pick from the way the traffic pack's "Cube015" etc. were nameable), 14 separate materials, meshes carrying up to **10 UV channels each** (`TEXCOORD_0` through `TEXCOORD_9` — not normal for static geometry, suggests a baked-lightmap authoring pipeline), and a reported bounding box only ~0.73 units wide despite being ~28 deep and ~6.6 tall — far too thin to be a real building cluster at face value, which smells like the same kind of hidden axis/scale correction the pedestrian pack had, just not yet confirmed by actually loading it in Babylon. `Road props pack` (54MB) and `City buildings` (6.7MB) haven't been surveyed at all yet. **Deliberately not pushed further this session**: unlike every other item shipped today, this one doesn't reduce to "verify in isolation, then place it" — it needs real investigation (load it in-browser, find out what the actual geometry looks like, figure out if there's a correction transform to preserve) before any placement decision can even be made, and the design doc already flagged this specific tradeoff ("needs a scope decision on how much of the world to dress up") as one worth a second opinion rather than a solo guess. A good next session's starting point, not a quick follow-on to the bridge.
 4. **Sound mix quality — needs the user's own ears**, not something to resolve autonomously. Flagged as a known gap, not forgotten.
 5. **Animated car/map thumbnails** — still blocked on Puppeteer's Chromium download being refused by this environment's script policy; static WebPs are the fallback and already shipped. Low priority revisit.
 
