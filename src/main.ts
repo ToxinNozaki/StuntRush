@@ -22,6 +22,32 @@ import { EnvironmentController } from "./environment";
 import { hueToHex, getCarSpec } from "./cars";
 import { MAX_CHAT_LENGTH } from "./chat";
 
+/** Races a promise against a timeout so one slow/hung network fetch can't freeze
+ *  the whole app forever. Used at boot around the menu preview car's model load —
+ *  see the call site for why that one spot matters more than it looks like it
+ *  should. On timeout, the original promise keeps running in the background (it's
+ *  never cancelled, just no longer awaited) and still takes effect whenever/if it
+ *  resolves; this only stops *blocking* on it. */
+function withTimeout(promise: Promise<void>, ms: number, label: string): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      console.warn(`${label} didn't finish within ${ms}ms — continuing without waiting on it.`);
+      resolve();
+    }, ms);
+    promise.then(
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      (err) => {
+        clearTimeout(timer);
+        console.warn(`${label} failed — continuing without it.`, err);
+        resolve();
+      }
+    );
+  });
+}
+
 async function main() {
   const loadingScreen = document.getElementById("loadingScreen")!;
   const loadingBarFill = document.getElementById("loadingBarFill")!;
@@ -371,7 +397,16 @@ async function main() {
   });
 
   setLoadingProgress(55, "Loading");
-  await menuScene.show();
+  // Reported bug: the whole app could get stuck on this exact loading screen
+  // forever — menuScene.show() awaits a network fetch of the background preview
+  // car's model with no timeout, so any hiccup on that one request (slow network,
+  // a transient CDN blip, anything) froze boot permanently with no way out, even
+  // though nothing about the entry screen or menu itself actually needs that
+  // model to be ready. Race it against a timeout instead: if it's not done in
+  // 10s, move on and let the entry screen appear — the preview car (and the
+  // showroom mood menuScene.show() sets up once its model arrives) just pops in
+  // whenever that fetch actually finishes, rather than gating the entire game on it.
+  await withTimeout(menuScene.show(), 10000, "Menu preview car load");
   entryScreen.show();
   setLoadingProgress(100, "Loading");
 

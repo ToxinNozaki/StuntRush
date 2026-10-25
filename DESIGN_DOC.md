@@ -10,7 +10,7 @@
 > file is the durable, always-on-disk copy that survives a chat's context
 > filling up.
 >
-> Last synced: 2026-10-24 (doc rev 53)
+> Last synced: 2026-10-25 (doc rev 54)
 >
 > **Game name: "Go-Goated Racing"** — that's the in-game branding (menu logo, page
 > title). The repo name (`StuntRush`), the npm package name (`stuntrush`), and this
@@ -297,6 +297,14 @@ The user asked for a second map — "I'm thinking of a city." Before building bl
 **Verified**: zero console errors through a full load; confirmed via direct scene inspection that all 9 blocks got exactly one building cluster and one collider each (no gaps, no road-overlap); confirmed visually from multiple vantage points (ground level near spawn, and an aerial view moving the camera independently of the chase-follow logic) that the skyline reads correctly — varied tower heights, real glowing windows, boundary wall and open road grid all in the right places, no stray domes. `dist/` grew from 50MB to 52MB.
 
 **Known gaps, left for later rather than blocking this first pass**: no street props (barriers/cones/signs — the "Road props pack" survey, see below, found this pack is actually street *furniture*, not road geometry, so it's a nice-to-have atmosphere pass, not core infrastructure); no traffic AI; roads and lots share one material (no distinct sidewalks); no baked thumbnail for the map-select tile; only the one skyline cluster model used — `Road props pack` (54MB) is now understood to contain barriers/cones/signs/cardboard, not pavement tiles, so it was correctly *not* needed for the road grid itself, which is built procedurally instead.
+
+### Real bug: the app could get stuck forever on the very first loading screen — fixed (2026-10-25)
+
+User-reported: "the game is stuck at 55 percent." Traced to `main.ts`'s boot sequence — `setLoadingProgress(55, "Loading"); await menuScene.show();` — the literal "55" in that progress call is what the user saw frozen. This isn't the per-map gameplay loading screen (which has its own separate 5/30/70/90 sequence inside `Game.load()`); it's the very first screen the whole app shows, before the entry/main menu even appears, and `menuScene.show()` awaits a network fetch of the background turntable's preview car model with **no timeout at all**. Any hiccup on that one request — slow network, a transient CDN blip, anything — froze the *entire app* permanently, with no retry, no fallback, no way out, even though nothing about the entry screen or main menu actually needs that decorative preview car to be ready. This was a pre-existing fragility, not something introduced by anything built today — it just hadn't been hit (or hadn't been reported) before.
+
+Could not force a real reproduction (my own test loaded fine, presumably because the relevant assets were already warm in cache from earlier testing this session) — fixed on the strength of the code itself clearly matching the exact symptom ("stuck at 55") rather than waiting for a reliable repro. Fixed with a `withTimeout()` helper in `main.ts`: races `menuScene.show()` against a 10-second timer. If the timer wins, logs a console warning and lets the boot sequence continue to the entry screen anyway — the original promise is never cancelled, just no longer blocking; the preview car (and the dark showroom mood `menuScene.show()` sets up once its model arrives) still pops in whenever that fetch actually finishes, or just never appears if it truly never resolves, which is a far better failure mode than a permanently frozen app. Verified both paths directly: forced the timeout to fire (set it to 1ms) and confirmed the entry screen still appeared and the car still loaded in shortly after: zero console errors either way.
+
+**Known related risk, not fixed here, deliberately scoped out**: the per-map gameplay loading screen (`Game.load()`'s own 5/30/70/90 sequence, awaited by `startLoadingFlow()` in `main.ts`) has the same shape of risk — if `vehicle.attachVisual()` or another awaited step inside it hangs on a network fetch, the player would get stuck on that loading screen with no way back to the menu either (the back button only reappears after `game.load()` resolves). Not touched in this pass since the user's concrete report was specifically about the boot screen, and patching a mid-gameplay-load timeout safely means deciding what to clean up / fall back to (a half-constructed world, vehicle, physics bodies) — a real decision, not a drop-in fix, and not worth guessing at without a concrete report to anchor it. Worth hardening the same way if it's ever hit.
 
 ## Key implementation facts worth knowing (not in the original doc, learned during the build)
 
