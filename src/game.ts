@@ -2,6 +2,7 @@ import * as BABYLON from "@babylonjs/core";
 import { InputManager } from "./input";
 import { VehicleController } from "./vehicle";
 import { buildWorld, type BuiltWorld } from "./world";
+import { buildCityWorld, CITY_SPAWN } from "./cityWorld";
 import { MultiplayerClient } from "./multiplayer";
 import { RemoteCar } from "./remoteCar";
 import { getCarSpec } from "./cars";
@@ -74,7 +75,7 @@ export class Game {
   }
 
   async load(
-    _mapId: string,
+    mapId: string,
     gripMultiplier = 1,
     signalingUrl: string | null = null,
     carId?: string,
@@ -90,9 +91,15 @@ export class Game {
     this.localNickname = sanitizeNickname(nickname ?? "") || DEFAULT_NICKNAME_FALLBACK;
     this.peerNicknames.clear();
     report(5, "Preparing track");
-    this.world = buildWorld(this.scene);
+    const isCity = mapId === "city";
+    this.world = isCity ? buildCityWorld(this.scene) : buildWorld(this.scene);
 
-    const spawn = new BABYLON.Vector3(0, 2, 0);
+    // The city's traffic-free grid and the test track's hardcoded loop waypoints
+    // don't share coordinates — TrafficController's patrol route is tuned
+    // specifically for the test track (see traffic.ts), so it only spawns there
+    // for now. A city-aware patrol route (following the road grid) is a
+    // reasonable follow-up, not attempted in this map's first pass.
+    const spawn = isCity ? CITY_SPAWN : new BABYLON.Vector3(0, 2, 0);
     const vehicle = new VehicleController(this.scene, this.input, spawn);
     vehicle.setGripMultiplier(gripMultiplier);
     if (carId) vehicle.setCarSpec(getCarSpec(carId));
@@ -103,9 +110,11 @@ export class Game {
     await vehicle.attachVisual();
     this.onCarVisualReady?.(vehicle.visualMeshes);
 
-    report(70, "Spawning traffic");
-    this.traffic = new TrafficController(this.scene);
-    await this.traffic.spawn();
+    if (!isCity) {
+      report(70, "Spawning traffic");
+      this.traffic = new TrafficController(this.scene);
+      await this.traffic.spawn();
+    }
 
     report(90, "Finalizing");
     if (signalingUrl) this.startMultiplayer(signalingUrl);

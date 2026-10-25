@@ -19,7 +19,7 @@ const BRIDGE_URL = `${import.meta.env.BASE_URL}models/bridge.glb`;
  *  world itself had any texture or roughness response to the scene's IBL. */
 const TEXTURES_BASE = `${import.meta.env.BASE_URL}textures`;
 
-function loadPBRMaterial(
+export function loadPBRMaterial(
   scene: BABYLON.Scene,
   name: string,
   folder: string,
