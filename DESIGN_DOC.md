@@ -10,7 +10,7 @@
 > file is the durable, always-on-disk copy that survives a chat's context
 > filling up.
 >
-> Last synced: 2026-10-25 (doc rev 54)
+> Last synced: 2026-10-25 (doc rev 55)
 >
 > **Game name: "Go-Goated Racing"** — that's the in-game branding (menu logo, page
 > title). The repo name (`StuntRush`), the npm package name (`stuntrush`), and this
@@ -305,6 +305,18 @@ User-reported: "the game is stuck at 55 percent." Traced to `main.ts`'s boot seq
 Could not force a real reproduction (my own test loaded fine, presumably because the relevant assets were already warm in cache from earlier testing this session) — fixed on the strength of the code itself clearly matching the exact symptom ("stuck at 55") rather than waiting for a reliable repro. Fixed with a `withTimeout()` helper in `main.ts`: races `menuScene.show()` against a 10-second timer. If the timer wins, logs a console warning and lets the boot sequence continue to the entry screen anyway — the original promise is never cancelled, just no longer blocking; the preview car (and the dark showroom mood `menuScene.show()` sets up once its model arrives) still pops in whenever that fetch actually finishes, or just never appears if it truly never resolves, which is a far better failure mode than a permanently frozen app. Verified both paths directly: forced the timeout to fire (set it to 1ms) and confirmed the entry screen still appeared and the car still loaded in shortly after: zero console errors either way.
 
 **Known related risk, not fixed here, deliberately scoped out**: the per-map gameplay loading screen (`Game.load()`'s own 5/30/70/90 sequence, awaited by `startLoadingFlow()` in `main.ts`) has the same shape of risk — if `vehicle.attachVisual()` or another awaited step inside it hangs on a network fetch, the player would get stuck on that loading screen with no way back to the menu either (the back button only reappears after `game.load()` resolves). Not touched in this pass since the user's concrete report was specifically about the boot screen, and patching a mid-gameplay-load timeout safely means deciding what to clean up / fall back to (a half-constructed world, vehicle, physics bodies) — a real decision, not a drop-in fix, and not worth guessing at without a concrete report to anchor it. Worth hardening the same way if it's ever hit.
+
+### Real bug: engine audio faded toward silence at top speed — fixed (2026-10-25)
+
+User-reported: the Hellcat's engine audio "doesn't seem to be having that looping sound or holding the sound... depending on how fast you're going." Traced to the trapezoid crossfade from the previous audio fix (just above): the per-band weight ramped down to 0 at **both** edges of every band's range — including the first and last bands in the ladder, which don't have a neighboring band on their outer side to crossfade into. For the last band specifically (Hellcat's "fourth," fake-RPM 0.7–1.0), that meant: as the player's speed approached and clamped at `topSpeedKph` (fakeRpm clamps to exactly `1.0` = that band's `rangeEnd`), the ramp-to-silence logic fired right there with nothing to fade into — **the engine went quiet exactly as the car got fastest**, the opposite of realistic.
+
+Confirmed this wasn't theoretical before touching anything: Hellcat has `enginePowerMultiplier: 1.3` in `cars.ts`, the highest of any car (others sit 0.9–1.15) — the car most able to actually reach and sustain speeds at or above its audio profile's `topSpeedKph: 230`, i.e. the one most likely to spend real playtime sitting in that broken top-of-ladder silence zone. The bug is systemic to all four profiles (same `update()` method), just most noticeable on the car most likely to hold true top speed.
+
+(Dead end worth recording: first suspected a literal silent tail baked into `hellcat/first.wav` — checked the waveform twice with different window alignments and got contradictory readings; a third, more careful sample-level check showed the clip is loud right to its last 50ms. The "silent tail" was a measurement artifact from sloppy windowing in the first analysis script, not a real defect. Debunked before touching any code — worth remembering that quick RMS-envelope scripts can lie at exact file-length boundaries if the window size doesn't evenly divide the buffer.)
+
+**Fix**: in `EngineAudio.update()`'s per-band loop (`src/audio.ts`), switched to an indexed loop so each band knows whether it's first/last in `this.profile.bands`, and skip the edge-ramp on the side with no neighbor — first band holds full volume immediately from `rangeStart` (the idle layer is already fading out in parallel there, so nothing sounds wrong), last band holds full volume all the way to and past `rangeEnd` (so holding top speed sustains the note). Middle bands unchanged.
+
+**Verified two ways**: (1) a standalone Node script running the exact same weight formula confirmed the math — at `fakeRpm=1.0`, the last band now computes `weight=1` instead of `0`; (2) live in the browser, set the Hellcat's physics chassis velocity directly to a sustained 230 kph (driving there manually is unreliable to hold steady for a test) and read the actual Web Audio `GainNode.gain.value` off the live graph — confirmed the "fourth" band holds at `~0.8` (full strength scaled by the engine-volume setting) instead of decaying toward 0, with all other bands correctly silent. Zero console errors.
 
 ## Key implementation facts worth knowing (not in the original doc, learned during the build)
 

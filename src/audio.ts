@@ -269,7 +269,8 @@ export class EngineAudio {
     const idleTarget = Math.max(0, 1 - fakeRpm * 2.2) * trim;
     this.idleGain?.gain.setTargetAtTime(idleTarget, t, 0.12);
 
-    for (const band of this.bands) {
+    for (let i = 0; i < this.bands.length; i++) {
+      const band = this.bands[i];
       // Plateau (not a triangle): full volume across the whole middle of a band's
       // range, ramping only in the short zone at each edge where it actually
       // overlaps a neighboring band. The old code peaked at exactly the band's
@@ -282,11 +283,24 @@ export class EngineAudio {
       // than a fraction of the band's own width, so the plateau still dominates
       // even on the narrowest bands — chosen to roughly match how far adjacent
       // bands actually overlap (see AUDIO_PROFILES above), not a guess.
+      //
+      // The first/last band in the ladder don't have a neighbor on their outer
+      // side to crossfade into, so they skip that edge's ramp entirely (hold
+      // full volume instead of fading to 0). Without this, the *last* band
+      // (the one covering top speed) faded toward silence exactly as fakeRpm
+      // approached and clamped at 1.0 — i.e. the engine went quiet right as the
+      // car got fastest, a real user-reported bug, most audible on the Hellcat
+      // since its high enginePowerMultiplier makes it the car most likely to
+      // actually sustain speeds up near its audio profile's topSpeedKph. The
+      // first band's fade-in is similarly skipped — safe to drop since the
+      // idle layer is already fading out in parallel there, so there's no gap.
+      const isFirst = i === 0;
+      const isLast = i === this.bands.length - 1;
       const fade = Math.min(BAND_FADE_WIDTH, (band.rangeEnd - band.rangeStart) / 2 || 1);
       let weight = 0;
       if (fakeRpm >= band.rangeStart && fakeRpm <= band.rangeEnd) {
-        if (fakeRpm < band.rangeStart + fade) weight = (fakeRpm - band.rangeStart) / fade;
-        else if (fakeRpm > band.rangeEnd - fade) weight = (band.rangeEnd - fakeRpm) / fade;
+        if (!isFirst && fakeRpm < band.rangeStart + fade) weight = (fakeRpm - band.rangeStart) / fade;
+        else if (!isLast && fakeRpm > band.rangeEnd - fade) weight = (band.rangeEnd - fakeRpm) / fade;
         else weight = 1;
       }
       band.gain.gain.setTargetAtTime(weight * trim, t, 0.12);
